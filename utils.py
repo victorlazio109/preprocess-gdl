@@ -29,7 +29,10 @@ class CsvLogger:
             path_to_csv.parent.mkdir(exist_ok=True)
             if path_to_csv.is_file():
                 path_to_csv = path_to_csv.parent / f"{path_to_csv.stem}_{datetime.now().strftime('%Y-%m-%d_%H-%M')}{path_to_csv.suffix}"
-            open(str(path_to_csv), 'w', newline="")
+            try:
+                open(str(path_to_csv), 'w', newline="")
+            except PermissionError as e:
+                logging.warning(e)
             self.out_csv = path_to_csv
             logging.info(f"{self.out_csv.name} will be saved to: {self.out_csv.parent.absolute()}")
         else:

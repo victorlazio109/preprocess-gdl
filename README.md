@@ -29,7 +29,7 @@ Il existe deux enjeux pour la compatibilité entre Linux et Windows.
 1. Impossible de lancer cmd.exe (via subprocess) lorsque le répertoire de travail est de type UNC (enjeu majeur)
 
 Sur Windows, il n'est pas possible de lancer OTB toolbox via la ligne de commande lorsque le répertoire de travail est de type UNC. Pour plus de détails, voir [`script otb_apps.py`, ligne 86.](https://github.com/remtav/preprocessing-gdl/blob/master/otb_apps.py#L86)
-Il n'est donc pas possible d'utiliser OTB via la ligne de commande lorsqu'on travail sur des fichiers issus de CITS. Il faudra réusiner le code pour travailler avec des chemins absolus.
+Il n'est donc pas possible d'utiliser OTB via la ligne de commande lorsqu'on travaille sur des fichiers issus de CITS. Il faudra réusiner le code pour travailler avec des chemins absolus.
 
 2. Sensibilité à la casse pour les chemins sur Linux (enjeu mineur)
 
@@ -46,7 +46,8 @@ Une solution potentielle pour éviter que l'utilisateur porte la responsabilité
 
 ## Fonctionnement des scripts
 
-La ligne suivante permet d'exécuter le script à partir de la ligne de commandes: 
+La ligne suivante permet d'exécuter le script à partir de la ligne de commandes:
+ 
 ```python preprocess_pipreline.py path/to/config.yaml```
 
 Ce script utilise le fichier de paramètres  `config.yaml` (voir section ci-dessous). Puis, ```preprocess_glob.py``` est appelé pour la recherche mul/pan (voir section «Étape 1: ...»), puis effectue le pansharp (voir section «.Étape 2: ...») et le cog (voir section «Étape 3: ...»). 

@@ -171,7 +171,6 @@ class PansharpRaster:
 
         # Define input pansharp depending on uint8_copy parameter
         in_psh = self.pansharp_8bit_copy if uint8_copy else self.pansharp
-        in_psh_size = round(in_psh.stat().st_size / 1024 ** 3)
         # If output not found, check if input exist before processing. If not found, return, else proceed to cogging.
         if not validate_file_exists(out_file) or overwrite:
             if not in_psh:
@@ -180,6 +179,7 @@ class PansharpRaster:
                 self.errors.append(miss_inp_cog)
                 return
             else:
+                in_psh_size = round(in_psh.stat().st_size / 1024 ** 3)
                 # TODO: softcode these cog config parameters.
                 config = dict(GDAL_NUM_THREADS="ALL_CPUS", GDAL_TIFF_INTERNAL_MASK=False, GDAL_TIFF_OVR_BLOCKSIZE="128")
                 dst_profile = cog_profiles.get("deflate")  # TODO: LZW? https://digital-geography.com/geotiff-compression-comparison/
