@@ -40,10 +40,13 @@ class CsvLogger:
 
     def write_row(self, row=[]):
         if self.out_csv:
-            of_connection = open(str(self.out_csv), 'a', newline="")  # Write to the csv file ('a' means append)
-            writer = csv.writer(of_connection, delimiter=';')
-            writer.writerow(row)
-            of_connection.close()
+            try:
+                of_connection = open(str(self.out_csv), 'a', newline="")  # Write to the csv file ('a' means append)
+                writer = csv.writer(of_connection, delimiter=';')
+                writer.writerow(row)
+                of_connection.close()
+            except PermissionError as e:
+                logging.warning(e)
         else:
             if not self.switch:
                 logging.warning("Output was not created. Use self.create_csv() method to create csv.")
