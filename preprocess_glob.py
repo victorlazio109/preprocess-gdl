@@ -60,7 +60,7 @@ def pansharp_glob(base_dir: str,
     logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
     logging.info("Started")
 
-    base_dir = Path(base_dir).resolve()  # Resolved path is useful in section 2 (search for panchromatic).
+    base_dir_res = Path(base_dir).resolve()  # Resolved path is useful in section 2 (search for panchromatic).
     pansharp_method = pansharp_method.split("otb-")[-1] if pansharp_method.startswith("otb-") else pansharp_method
 
     CsvLog = CsvLogger(out_csv=out_csv)
@@ -73,11 +73,11 @@ def pansharp_glob(base_dir: str,
         mul_glob_pattern = mul_pan_info[0][0] + "." + ext
         # FIXME: there may be compatibilty issues with glob's case sensitivity in Linux. Working ok on Windows.
         # More info: https://jdhao.github.io/2019/06/24/python_glob_case_sensitivity/
-        mul_rasters_glob = base_dir.glob(mul_glob_pattern)
+        mul_rasters_glob = base_dir_res.glob(mul_glob_pattern)
 
         # Loop through glob generator object and retrieve individual multispectral images
         for mul_raster in tqdm(mul_rasters_glob, desc='Iterating through multispectral images'):  # mul_raster being a Path object
-            mul_raster_rel = Path(mul_raster).relative_to(base_dir)  # Use only relative paths from here
+            mul_raster_rel = Path(mul_raster).relative_to(base_dir_res)  # Use only relative paths from here
             err_mgs = []
             length_err = ("Check absolute path length. May exceed 260 characters.")
             if not validate_file_exists(mul_raster_rel):
@@ -89,23 +89,23 @@ def pansharp_glob(base_dir: str,
             # assume panchromatic file has same extension as multispectral
             pan_rasters_glob = sorted(mul_raster_rel.parent.glob(pan_glob_pattern))
             if len(pan_rasters_glob) == 0:
-                missing_pan = f'The provided glob pattern {pan_glob_pattern} could not locate a potential ' \
-                              f'panchromatic raster to match {mul_raster_rel}. ' \
-                              'Skipping to next multispectral raster...'
+                missing_pan = f"The provided glob pattern {pan_glob_pattern} could not locate a potential" \
+                              f"panchromatic raster to match {mul_raster_rel}."\
+                              f"Skipping to next multispectral raster..."
                 logging.warning(missing_pan)
                 err_mgs.append(missing_pan)
                 continue
             # Replace string that identifies the raster as a multispectral for one identifying panchromatic raster
             pan_best_guess = str(mul_raster_rel.name).replace(mul_pan_info[1][0], mul_pan_info[1][1])
             # Guess the panchromatic image's path using directory from glob results above. This file may not exist.
-            pan_best_guess_rel_path = (pan_rasters_glob[0].parent.resolve() / pan_best_guess).relative_to(base_dir)
+            pan_best_guess_rel_path = (pan_rasters_glob[0].parent.resolve() / pan_best_guess).relative_to(base_dir_res)
             # Make a list of strings from paths given by glob results above.
             pan_rasters_str = []
             for potential_pan in pan_rasters_glob:
                 # Resolve paths to avoid path length problems in Windows,
                 # i.e. discard all relative references (ex.: "mul_dir/../pan_dir") making path longer
                 pot_pan_dir = potential_pan.parent.resolve()
-                pot_pan_rel = pot_pan_dir.joinpath(potential_pan.name).relative_to(base_dir)
+                pot_pan_rel = pot_pan_dir.joinpath(potential_pan.name).relative_to(base_dir_res)
                 pan_rasters_str.append(str(pot_pan_rel))
             # Get closest match between guessed name for panchromatic image and glob file names
             pan_raster_rel = Path(get_close_matches(str(pan_best_guess_rel_path), pan_rasters_str)[0])
@@ -128,7 +128,7 @@ def pansharp_glob(base_dir: str,
             # Determine output path
             common_prefix = Path(os.path.commonprefix([str(mul_raster_rel.parent.resolve()),
                                                        str(pan_raster_rel.parent.resolve())]))
-            common_prefix = Path(common_prefix).relative_to(Path(base_dir).resolve())
+            common_prefix = Path(common_prefix).relative_to(Path(base_dir_res).resolve())
             output_path = common_prefix.joinpath('PREP') if common_prefix.is_dir() \
                 else Path(str(common_prefix)+'PREP')
 
@@ -156,11 +156,11 @@ def pansharp_glob(base_dir: str,
     if psh_glob:  # if config file contains any search pattern, glob.
         for psh_glob_item, ext in product(psh_glob, extensions):
             psh_glob_pattern = psh_glob_item + "." + ext
-            psh_rasters_glob = base_dir.glob(psh_glob_pattern)
+            psh_rasters_glob = base_dir_res.glob(psh_glob_pattern)
             for psh_raster in tqdm(psh_rasters_glob, desc="Iterating through already pansharped images"):
                 raster = rasterio_raster_reader(str(psh_raster))  # Set output dtype as original multispectral dtype
                 psh_dtype = raster.meta["dtype"]
-                psh_raster_rel = Path(psh_raster).relative_to(base_dir)  # Use only relative paths
+                psh_raster_rel = Path(psh_raster).relative_to(base_dir_res)  # Use only relative paths
                 output_cog_rel = psh_raster_rel.parent / (psh_raster_rel.stem + "-" + psh_dtype + "-cog" + psh_raster_rel.suffix)
                 logging.debug(f"\nPansharp image found: {psh_raster_rel}\n")
 

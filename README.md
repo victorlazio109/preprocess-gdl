@@ -26,17 +26,17 @@ Python ­>= 3.6 avec librairies suivantes:
 
 Il existe trois enjeux pour la compatibilité entre Linux et Windows.
 
-    1. Longueur des chemins vers les fichiers (enjeu majeur)
+##### 1. Longueur des chemins vers les fichiers (enjeu majeur)
 
 Les modules pathlib et os ne "trouvent" pas les fichiers dont le chemin absolu a plus de 260 caractères. Ainsi, il est problématique de lire ou écrire un fichier sur un système Linux qui a plus de 260 caractères. Il s'agit d'un enjeu majeur pour lequel aucune solution n'a été trouvée. Lorsque l'utilisateur a les droits admin de sa machine, il peut toutefois lever cet obstacle. Voir: https://www.howtogeek.com/266621/how-to-make-windows-10-accept-file-paths-over-260-characters/.
 Les scripts de prétraitement émettront un avertissement lorsque la longueur du chemin dépasse la limite, si Python est exécuté sur Windows.  
 
-    2. Impossible de lancer cmd.exe (via subprocess) lorsque le répertoire de travail est de type UNC (enjeu majeur)
+##### 2. Impossible de lancer cmd.exe (via subprocess) lorsque le répertoire de travail est de type UNC (enjeu mineur)
 
 Sur Windows, il n'est pas possible de lancer OTB toolbox via la ligne de commande lorsque le répertoire de travail est de type UNC. Pour plus de détails, voir [`script otb_apps.py`, ligne 86.](https://github.com/remtav/preprocessing-gdl/blob/master/otb_apps.py#L86)
-Il n'est donc pas possible d'utiliser OTB via la ligne de commande lorsqu'on travaille sur des fichiers issus de CITS. Il faudra réusiner le code pour travailler avec des chemins absolus.
+Il n'est donc pas possible d'utiliser OTB via la ligne de commande lorsqu'on travaille sur des fichiers issus de CITS, **sauf si on s'y réfère, par exemple, via `W:\travail`, plutôt que `\\DFSCITSH.nrn.nrcan.gc.ca\Cits\Travail`**.
 
-    3. Sensibilité à la casse pour les chemins sur Linux (enjeu mineur)
+##### 3. Sensibilité à la casse pour les chemins sur Linux (enjeu mineur)
 
 Par exemple, lorsque le script *preoprocess_glob* recherche des images avec une extension .tif ou .TIF sur Linux, il est nécessaire de chercher ces deux cas spécifiquement, ce qui n'est pas le cas pour Windows. Un exemple pour la ligne correspondante du fichier de config:
 
