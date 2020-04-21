@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 from datetime import datetime
 import warnings
-from typing import Union
+from typing import Union, List
 import logging
 
 from ruamel_yaml import YAML
@@ -15,6 +15,11 @@ logging.getLogger(__name__)
 
 class CsvLogger:
     def __init__(self, out_csv: str = None):
+        """
+        Instanciate a CSV Logger
+        :param out_csv: str
+            Path to output csv that is to be created.
+        """
         self.out_csv = out_csv
         if self.out_csv:
             self.create_csv(out_csv)
@@ -38,7 +43,13 @@ class CsvLogger:
         else:
             logging.warning("Csv output file not created.")
 
-    def write_row(self, row=[]):
+    def write_row(self, row: List = []):
+        """
+        Write a row to self.
+        :param row: list
+            row to be added to the csv linked to self (self.out_csv)
+        :return:
+        """
         if self.out_csv:
             try:
                 of_connection = open(str(self.out_csv), 'a', newline="")  # Write to the csv file ('a' means append)
@@ -67,6 +78,12 @@ def read_parameters(param_file):
 
 
 def str2bool(v):
+    """
+    Convert str to bool for inputted parameters (e.g. from argparse)
+    :param v: str
+        Input string to be converted to bool
+    :return:
+    """
     if isinstance(v, bool):
        return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -78,16 +95,22 @@ def str2bool(v):
 
 
 def empty_folder(folder):
+    """
+    Empty folder of all its files
+    :param folder: str
+        Path to folder to be emptied
+    :return:
+    """
     files = glob.glob('%s/*' % folder)
     for f in files:
         os.remove(f)
-        warnings.warn('Removing: %s' % f)
+        logging.warning('Removing: %s' % f)
 
 
 def validate_raster(raster: Union[Path, str]):
-    # This would have been great if it worked. See: https://lists.osgeo.org/pipermail/gdal-dev/2013-November/037520.html
+    # TODO: This would have been great if it worked. See: https://lists.osgeo.org/pipermail/gdal-dev/2013-November/037520.html
     # Been having trouble with Gdal 2.2.2: not reading ntf.
-    # Also, version 2.4 is returning invalid ntf, although open wells in QGIS
+    # Also, version 2.4 is returning invalid ntf, although opens ok in QGIS.
     # if Path(raster).is_file():
     #     ds = gdal.Open(str(raster))
     #     for i in range(ds.RasterCount):
@@ -98,6 +121,12 @@ def validate_raster(raster: Union[Path, str]):
 
 
 def valid_path_length(path: Union[Path, str]):
+    """
+    Validate path length is below limit for Windows file system.
+    :param path: Path or str
+        path to be validated
+    :return: bool
+    """
     path = Path(path)
     if os.name == "nt" and len(str(path.absolute())) >= 260:
         logging.warning('Path exceeds 260 characters. May cause problems on Windows, '
@@ -112,6 +141,12 @@ def valid_path_length(path: Union[Path, str]):
 
 
 def validate_file_exists(path: Union[Path, str]):
+    """
+    Checks if file exists, taking into account the path length limits on Windows
+    :param path: Path or str
+        Path to input file
+    :return: bool
+    """
     path = Path(path)
     if path.is_file():
         return True
@@ -120,21 +155,28 @@ def validate_file_exists(path: Union[Path, str]):
         return False
 
 
-def rasterio_raster_reader(tif_file=""):
+def rasterio_raster_reader(tif_file: str = ""):
+    """
+    Read raster
+    :param tif_file: str
+        Path to raster to be read
+    :return: DatasetReader object (rasterio)
+    """
     raster = rasterio.open(str(tif_file), 'r')
     return raster
 
 
 def list_of_tuples_from_csv(path, delimiter=";"):
+    """
+    Create list of tuples from a csv file
+    :param path: Path or str
+        path to csv file
+    :param delimiter: str
+        type of delimiter for inputted csv
+    :return:
+    """
     assert Path(path).suffix == '.csv', ('Not a ".csv.": ' + path)
     with open(str(path), newline='') as f:
         reader = csv.reader(f, delimiter=delimiter)
         data = [tuple(row) for row in reader]
     return data
-
-
-def log_csv(out_file, row=[]):
-    of_connection = open(str(out_file), 'a', newline="")  # Write to the csv file ('a' means append)
-    writer = csv.writer(of_connection, delimiter=';')
-    writer.writerow(row)
-    of_connection.close()

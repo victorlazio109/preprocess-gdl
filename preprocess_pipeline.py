@@ -88,6 +88,8 @@ def main(input_csv: str = "",
         PshRaster = PansharpRaster(basedir=Path(base_dir),
                                    multispectral=Path(mul_raster),
                                    panchromatic=Path(pan_raster),
+                                   pansharp=Path(output_psh),
+                                   cog=Path(output_cog),
                                    dtype=dtype,
                                    method=method,
                                    trim=trim,
@@ -138,23 +140,26 @@ def main(input_csv: str = "",
             out_8bit = str(Path(output_psh).parent / f"{Path(output_psh).stem}-uint8{Path(output_psh).suffix}")
             output_cog_8bit = str(Path(output_cog).parent / f"{Path(output_cog).stem}-uint8{Path(output_cog).suffix}")
 
+        # If cogged 8bit copy doesn't exist
         if not validate_file_exists(output_cog_8bit):
+            # if 8bit is requested and pansharp is 16bit
             if copy_to_8bit and PshRaster.dtype == "uint16":
-                if not validate_file_exists(out_8bit) or overwrite:  # If 8bit copy does not exist, create it!
+                # if output 8bit pansharp doesn't exist or overwrite requested, RESCALE!
+                if not validate_file_exists(out_8bit) or overwrite:
                     PshRaster.rescale_trim(out_8bit, dry_run=dry_run)
                 else:
                     PshRaster.pansharp_8bit_copy = Path(out_8bit)
-
-                if cog:
-                    PshRaster.coggify(out_file=output_cog_8bit,
-                                      inp_size_threshold=cog_inp_size_threshold,
-                                      uint8_copy=True,
-                                      dry_run=dry_run,
-                                      overwrite=overwrite,
-                                      delete_source=cog_delete_source)
         else:
             logging.info(f"\nCogged 8bit copy of pansharp already exists: {output_cog_8bit}")
             PshRaster.cog_8bit_copy = Path(output_cog_8bit)
+
+        if cog:
+            PshRaster.coggify(out_file=output_cog_8bit,
+                              inp_size_threshold=cog_inp_size_threshold,
+                              uint8_copy=True,
+                              dry_run=dry_run,
+                              overwrite=overwrite,
+                              delete_source=cog_delete_source)
 
             duration = datetime.now() - now_read
 

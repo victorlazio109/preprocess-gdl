@@ -16,6 +16,8 @@ class PansharpRaster:
                  basedir: Path,
                  multispectral: Path = None,
                  panchromatic: Path = None,
+                 pansharp: Path = None,
+                 cog: Path = None,
                  dtype: str = "",
                  method: str = "",
                  trim: Union[int, List] = 0,
@@ -24,11 +26,19 @@ class PansharpRaster:
         self.basedir = basedir
         assert basedir.is_dir()
 
-        self.multispectral = multispectral
+        if not validate_file_exists(multispectral):
+            logging.warning(f"Could not locate multispectral image \"{multispectral}\"")
+            self.multispectral = None
+        else:
+            self.multispectral = multispectral
+
         self.panchromatic = panchromatic
-        if not validate_file_exists(self.multispectral) or not validate_file_exists(self.panchromatic):
-            logging.warning(f"Could not locate multispectral image \"{self.multispectral}\" or "
-                            f"panchromatic image \"{self.panchromatic}\"")
+        if not validate_file_exists(self.panchromatic):
+            logging.warning(f"Could not locate panchromatic image \"{self.panchromatic}\"")
+            self.panchromatic = None
+
+        self.pansharp = pansharp if validate_file_exists(pansharp) else None
+        self.cog = cog if validate_file_exists(cog) else None
 
         self.dtype = dtype
         assert dtype in ["uint8", "int16", "uint16", "int32", "uint32"]
@@ -42,10 +52,8 @@ class PansharpRaster:
             self.trim_lower, self.trim_higher = trim
 
         self.copy_to_8bit = copy_to_8bit
-        self.pansharp = None
         self.pansharp_8bit_copy = None
         self.pansharp_size = 0
-        self.cog = None
         self.cog_8bit_copy = None
         self.cog_size = 0
         self.cog_delete_source = cog_delete_source
@@ -193,6 +201,9 @@ class PansharpRaster:
                             invalid_crs = f"invalid CRS for {in_psh}"
                             logging.warning(invalid_crs)
                             self.errors.append(invalid_crs)
+                        except Exception as e:
+                            logging.warning(e)
+                            self.errors.append(e)
                 else:
                     oversize = f"Input pansharp with size {in_psh_size} is larger than {inp_size_threshold} Gb"
                     logging.warning(oversize)

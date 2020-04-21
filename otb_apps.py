@@ -45,6 +45,7 @@ def otb_pansharp(inp, inxs, out, method="bayes", out_dtype="uint8", ram=1024):
                   f"-out \"{str(out)}\" {out_dtype} " \
                   f"-ram {str(ram)}"
 
+        logging.debug(f"Trying to pansharp through command-line with following command: {command}")
         subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if subproc.stderr:
             logging.warning(subproc.stderr)
@@ -86,7 +87,7 @@ def otb_8bit_rescale(infile, outfile, ram=4096, trim_lower=2, trim_higher=2):
             logging.warning(f"Subprocess cannot execute cmd.exe if working directory is UNC type: {os.getcwd()}")
             # See: https://stackoverflow.com/questions/5187160/call-subprocess-popen-when-the-working-directory-is-on-a-unc-path-not-a-mappe
         else:
-            logging.debug(f"Trying to rescale with following command: {command}")
+            logging.debug(f"Trying to rescale through command-line with following command: {command}")
             subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if subproc.stderr:
                 logging.warning(subproc.stderr)
