@@ -6,6 +6,7 @@ from difflib import get_close_matches
 from typing import List
 import logging
 
+import rasterio
 from tqdm import tqdm
 
 from utils import read_parameters, rasterio_raster_reader, validate_file_exists, CsvLogger
@@ -118,7 +119,11 @@ def pansharp_glob(base_dir: str,
 
             # 3. Define parameters for future pansharp (and more), now that we've found mul/pan pair.
             ################################################################################
-            raster = rasterio_raster_reader(str(mul_raster_rel))  # Set output dtype as original multispectral dtype
+            try:
+                raster = rasterio_raster_reader(str(mul_raster_rel))  # Set output dtype as original multispectral dtype
+            except rasterio.errors.RasterioIOError as e:
+                logging.warning(e)
+                continue
             dtype = raster.meta["dtype"]
 
             logging.debug(f"\nMultispectral image: {mul_raster_rel}\n"
@@ -158,7 +163,11 @@ def pansharp_glob(base_dir: str,
             psh_glob_pattern = psh_glob_item + "." + ext
             psh_rasters_glob = base_dir_res.glob(psh_glob_pattern)
             for psh_raster in tqdm(psh_rasters_glob, desc="Iterating through already pansharped images"):
-                raster = rasterio_raster_reader(str(psh_raster))  # Set output dtype as original multispectral dtype
+                try:
+                    raster = rasterio_raster_reader(str(psh_raster))  # Set output dtype as original multispectral dtype
+                except rasterio.errors.RasterioIOError as e:
+                    logging.warning(e)
+                    continue
                 psh_dtype = raster.meta["dtype"]
                 psh_raster_rel = Path(psh_raster).relative_to(base_dir_res)  # Use only relative paths
                 output_cog_rel = psh_raster_rel.parent / (psh_raster_rel.stem + "-" + psh_dtype + "-cog" + psh_raster_rel.suffix)

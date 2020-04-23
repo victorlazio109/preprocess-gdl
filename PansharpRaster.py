@@ -140,7 +140,7 @@ class PansharpRaster:
                              trim_lower=self.trim_lower,
                              trim_higher=self.trim_higher)
         if Path(out_file).is_file():
-            self.pansharp_8bit_copy = out_file
+            self.pansharp_8bit_copy = Path(out_file)
         else:
             psh_fail_8bit = f"Failed to create 8bit pansharp: {out_file}"
             logging.warning(psh_fail_8bit)
@@ -187,27 +187,27 @@ class PansharpRaster:
                 self.errors.append(miss_inp_cog)
                 return
             else:
-                in_psh_size = round(in_psh.stat().st_size / 1024 ** 3)
+                # in_psh_size = round(in_psh.stat().st_size / 1024 ** 3)
                 # TODO: softcode these cog config parameters.
                 config = dict(GDAL_NUM_THREADS="ALL_CPUS", GDAL_TIFF_INTERNAL_MASK=False, GDAL_TIFF_OVR_BLOCKSIZE="128")
                 dst_profile = cog_profiles.get("deflate")  # TODO: LZW? https://digital-geography.com/geotiff-compression-comparison/
                 dst_profile.update(dict(BIGTIFF="YES"))
-                if in_psh_size <= inp_size_threshold:
-                    logging.info(f"COGging {in_psh}")
-                    if not dry_run:
-                        try:
-                            cog_translate(in_psh, out_file, dst_profile, config=config, in_memory=True, quiet=True)
-                        except rasterio.errors.CRSError:
-                            invalid_crs = f"invalid CRS for {in_psh}"
-                            logging.warning(invalid_crs)
-                            self.errors.append(invalid_crs)
-                        except Exception as e:
-                            logging.warning(e)
-                            self.errors.append(e)
-                else:
-                    oversize = f"Input pansharp with size {in_psh_size} is larger than {inp_size_threshold} Gb"
-                    logging.warning(oversize)
-                    self.errors.append(oversize)
+                # if in_psh_size <= inp_size_threshold:
+                logging.info(f"COGging {in_psh}")
+                if not dry_run:
+                    try:
+                        cog_translate(in_psh, out_file, dst_profile, config=config)
+                    except rasterio.errors.CRSError:
+                        invalid_crs = f"invalid CRS for {in_psh}"
+                        logging.warning(invalid_crs)
+                        self.errors.append(invalid_crs)
+                    except Exception as e:
+                        logging.warning(e)
+                        self.errors.append(e)
+                # else:
+                #     oversize = f"Input pansharp with size {in_psh_size} is larger than {inp_size_threshold} Gb"
+                #     logging.warning(oversize)
+                #     self.errors.append(oversize)
         else:
             logging.info("COG file %s already exists...", out_file)
 

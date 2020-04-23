@@ -135,9 +135,12 @@ def main(input_csv: str = "",
         # set name for 8bit copy: replace "uint16" with "uint8" if possible, else add the latter as suffix.
         if "uint16" in output_psh:
             out_8bit = output_psh.replace("uint16", "uint8")
-            output_cog_8bit = output_cog.replace("uint16", "uint8")
         else:
             out_8bit = str(Path(output_psh).parent / f"{Path(output_psh).stem}-uint8{Path(output_psh).suffix}")
+
+        if "uint16" in output_cog:
+            output_cog_8bit = output_cog.replace("uint16", "uint8")
+        else:
             output_cog_8bit = str(Path(output_cog).parent / f"{Path(output_cog).stem}-uint8{Path(output_cog).suffix}")
 
         # If cogged 8bit copy doesn't exist
