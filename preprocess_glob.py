@@ -173,7 +173,7 @@ def pansharp_glob(base_dir: str,
                 output_cog_rel = psh_raster_rel.parent / (psh_raster_rel.stem + "-" + psh_dtype + "-cog" + psh_raster_rel.suffix)
                 logging.debug(f"\nPansharp image found: {psh_raster_rel}\n")
 
-                row = [str(base_dir), "", "", psh_dtype, str(psh_raster_rel), "", output_cog_rel, ""]
+                row = [str(base_dir), "", "", psh_dtype, str(psh_raster_rel), "", str(output_cog_rel), ""]
                 glob_output_list.append(tuple(row))
 
     # Once all images were found and appended, sort, then save to csv if desired.

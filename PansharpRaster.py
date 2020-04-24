@@ -217,7 +217,7 @@ class PansharpRaster:
                 self.errors.append(miss_inp_cog)
                 return
             else:
-                logging.info(f"COGging {in_psh}")
+                logging.info(f"COGging {out_file}")
                 if not dry_run:
                     try:
                         rio_cogeo_translate(in_psh, out_file)
