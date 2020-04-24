@@ -49,9 +49,8 @@ def otb_pansharp(inp, inxs, out, method="bayes", out_dtype="uint8", ram=1024):
         subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if subproc.stderr:
             logging.warning(subproc.stderr)
-            if "otbcli_BundleToPerfectSensor: not found" in subproc.stderr:
-                logging.warning("Make sure the environment for OTB is initialized. "
-                                "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")
+            logging.warning("Make sure the environment for OTB is initialized. "
+                            "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")
 
 def otb_8bit_rescale(infile, outfile, ram=4096, trim_lower=2, trim_higher=2):
     # See: https://www.orfeo-toolbox.org/CookBook/Applications/app_DynamicConvert.html
@@ -94,6 +93,5 @@ def otb_8bit_rescale(infile, outfile, ram=4096, trim_lower=2, trim_higher=2):
             subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if subproc.stderr:
                 logging.warning(subproc.stderr)
-                if "otbcli_DynamicConvert: not found" in subproc.stderr:
-                    logging.warning("Make sure the environment for OTB is initialized. "
-                                    "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")
+                logging.warning("Make sure the environment for OTB is initialized. "
+                                "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")

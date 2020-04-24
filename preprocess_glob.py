@@ -91,7 +91,7 @@ def pansharp_glob(base_dir: str,
             pan_rasters_glob = sorted(mul_raster_rel.parent.glob(pan_glob_pattern))
             if len(pan_rasters_glob) == 0:
                 missing_pan = f"The provided glob pattern {pan_glob_pattern} could not locate a potential" \
-                              f"panchromatic raster to match {mul_raster_rel}."\
+                              f"panchromatic raster to match {mul_raster_rel}." \
                               f"Skipping to next multispectral raster..."
                 logging.warning(missing_pan)
                 err_mgs.append(missing_pan)
@@ -156,6 +156,9 @@ def pansharp_glob(base_dir: str,
                    str(output_cog_rel), err_mgs]
             glob_output_list.append(tuple(row))
 
+    mul_pan_pairs_ct = len(glob_output_list)
+    logging.info(f"Found {mul_pan_pairs_ct} pair(s) of multispectral and panchromatic rasters with provided parameters")
+
     # 4. Find already pansharped images with a certain name pattern
     ################################################################################
     if psh_glob:  # if config file contains any search pattern, glob.
@@ -176,12 +179,14 @@ def pansharp_glob(base_dir: str,
                 row = [str(base_dir), "", "", psh_dtype, str(psh_raster_rel), "", str(output_cog_rel), ""]
                 glob_output_list.append(tuple(row))
 
+    psh_ct = len(glob_output_list) - mul_pan_pairs_ct
+    logging.info(f'Found {psh_ct} pansharped raster(s) with provided parameters')
+
     # Once all images were found and appended, sort, then save to csv if desired.
     glob_output_list = sorted(glob_output_list, key=lambda x: x[4])
     for row in glob_output_list:
         CsvLog.write_row(row=row)
 
-    logging.info('Found %d pair(s) of multispectral and panchromatic rasters with provided parameters' % len(glob_output_list))
     return glob_output_list
 
 

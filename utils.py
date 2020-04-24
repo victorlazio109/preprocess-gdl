@@ -147,12 +147,15 @@ def validate_file_exists(path: Union[Path, str]):
         Path to input file
     :return: bool
     """
-    path = Path(path)
-    if path.is_file():
-        return True
-    else:
-        valid_path_length(path)
+    if not path:
         return False
+    else:
+        path = Path(path)
+        if path.is_file():
+            return True
+        else:
+            valid_path_length(path)
+            return False
 
 
 def rasterio_raster_reader(tif_file: str = ""):

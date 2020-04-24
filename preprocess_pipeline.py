@@ -54,7 +54,6 @@ def main(input_csv: str = "",
 
     base_dir = glob_params['base_dir']
     os.chdir(base_dir)
-    # FIXME: subprocess calls will not work if base_dir is of type UNC.
 
     import logging.config  # based on: https://stackoverflow.com/questions/15727420/using-logging-in-multiple-modules
     out_log_path = Path("./logs")

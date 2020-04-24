@@ -166,8 +166,16 @@ class PansharpRaster:
         :return: Rescaled 8bit pansharp on disk
         """
         from otb_apps import otb_8bit_rescale
+
+        if validate_file_exists(self.pansharp):
+            infile = self.pansharp
+        elif validate_file_exists(self.cog):
+            infile = self.cog
+        else:
+            logging.warning(f"Could not find input 16bit raster to rescale to {out_file}")
+            return
         if not dry_run:
-            otb_8bit_rescale(infile=str(self.pansharp),
+            otb_8bit_rescale(infile=str(infile),
                              outfile=out_file,
                              trim_lower=self.trim_lower,
                              trim_higher=self.trim_higher)
