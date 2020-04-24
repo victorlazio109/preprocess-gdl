@@ -9,6 +9,38 @@ from utils import validate_file_exists
 
 logging.getLogger(__name__)
 
+
+def rio_cogeo_translate(in_raster: Union[Path, str],
+                        out_raster: Union[Path, str],
+                        ovr_blocksize: int = 128,
+                        compress_mode: str = "deflate"):
+    """
+    Translate a raster to a Cloud-Optimized-Geotiff
+    :param in_raster: Path or str
+        Path to input raster
+    :param out_raster: Path or str
+        Path to output raster
+    :param ovr_blocksize:
+        Overview blocksize
+    :param compress_mode:
+        Compression mode ("deflate", "LZW", etc.)
+    :return: Write COG to disk.
+    """
+    try:
+        from rio_cogeo.profiles import cog_profiles
+        from rio_cogeo.cogeo import cog_translate
+    except ImportError as e:
+        logging.warning(e)
+        return
+
+    config = dict(GDAL_NUM_THREADS="ALL_CPUS",
+                  GDAL_TIFF_INTERNAL_MASK=False,
+                  GDAL_TIFF_OVR_BLOCKSIZE=str(ovr_blocksize))
+    dst_profile = cog_profiles.get(compress_mode)
+    dst_profile.update(dict(BIGTIFF="YES"))
+    cog_translate(in_raster, out_raster, dst_profile, config=config)
+
+
 class PansharpRaster:
     all_objects = []
 
@@ -149,7 +181,6 @@ class PansharpRaster:
     def coggify(self,
                 out_file: Union[str, Path],
                 uint8_copy: bool = False,
-                inp_size_threshold: int = 14,
                 dry_run: bool = False,
                 delete_source: bool = False,
                 overwrite: bool = False):
@@ -171,8 +202,7 @@ class PansharpRaster:
         :return: Cogged geotiff on disk
         """
         try:
-            from rio_cogeo.profiles import cog_profiles
-            from rio_cogeo.cogeo import cog_validate, cog_translate
+            from rio_cogeo.cogeo import cog_validate
         except ImportError as e:
             logging.warning(e)
             return
@@ -187,16 +217,10 @@ class PansharpRaster:
                 self.errors.append(miss_inp_cog)
                 return
             else:
-                # in_psh_size = round(in_psh.stat().st_size / 1024 ** 3)
-                # TODO: softcode these cog config parameters.
-                config = dict(GDAL_NUM_THREADS="ALL_CPUS", GDAL_TIFF_INTERNAL_MASK=False, GDAL_TIFF_OVR_BLOCKSIZE="128")
-                dst_profile = cog_profiles.get("deflate")  # TODO: LZW? https://digital-geography.com/geotiff-compression-comparison/
-                dst_profile.update(dict(BIGTIFF="YES"))
-                # if in_psh_size <= inp_size_threshold:
                 logging.info(f"COGging {in_psh}")
                 if not dry_run:
                     try:
-                        cog_translate(in_psh, out_file, dst_profile, config=config)
+                        rio_cogeo_translate(in_psh, out_file)
                     except rasterio.errors.CRSError:
                         invalid_crs = f"invalid CRS for {in_psh}"
                         logging.warning(invalid_crs)
@@ -204,10 +228,6 @@ class PansharpRaster:
                     except Exception as e:
                         logging.warning(e)
                         self.errors.append(e)
-                # else:
-                #     oversize = f"Input pansharp with size {in_psh_size} is larger than {inp_size_threshold} Gb"
-                #     logging.warning(oversize)
-                #     self.errors.append(oversize)
         else:
             logging.info("COG file %s already exists...", out_file)
 

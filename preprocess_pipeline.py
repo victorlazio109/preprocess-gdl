@@ -18,7 +18,6 @@ def main(input_csv: str = "",
          copy_to_8bit: bool = True,
          max_ram = 4096,
          cog: bool = True,
-         cog_inp_size_threshold = 14,
          cog_delete_source: bool = False,
          log_csv: str = "",
          overwrite: bool = False,
@@ -126,7 +125,6 @@ def main(input_csv: str = "",
         # 4. COGGIFY!
         if cog:
             PshRaster.coggify(output_cog,
-                              inp_size_threshold=cog_inp_size_threshold,
                               dry_run=dry_run,
                               overwrite=overwrite,
                               delete_source=cog_delete_source)
@@ -158,7 +156,6 @@ def main(input_csv: str = "",
 
         if cog:
             PshRaster.coggify(out_file=output_cog_8bit,
-                              inp_size_threshold=cog_inp_size_threshold,
                               uint8_copy=True,
                               dry_run=dry_run,
                               overwrite=overwrite,
