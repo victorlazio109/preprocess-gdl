@@ -2,9 +2,13 @@ import os
 from pathlib import Path
 from typing import Union, List
 import logging
+import warnings
 
 import rasterio
-
+from rasterio.merge import merge
+import re
+import gdal
+from preprocess_glob import TileInfo, ImageInfo
 from utils import validate_file_exists
 
 logging.getLogger(__name__)
@@ -92,66 +96,6 @@ class PansharpRaster:
         self.errors = []
 
         PansharpRaster.all_objects.append(self)
-
-    def pansharpen(self,
-                   output_psh: str,
-                   ram: int = 4096,
-                   dry_run: bool = False):
-        """
-        Pansharpens self's multispectral and panchromatic rasters
-        :param output_psh: str
-            Output pansharp path
-        :param ram: int
-            Max ram allocated to orfeo toolbox (if used) during pansharp. Default: 4 Gb
-        :param dry_run: bool
-            If True, skip time-consuming step, i.e. pansharp.
-        :return: Pansharp raster on disk
-        """
-        if not (self.multispectral.is_file() or self.panchromatic.is_file()):
-            missing_mul_pan = f"Unable to pansharp due to missing mul {self.multispectral} or pan {self.panchromatic}"
-            logging.warning(missing_mul_pan)
-            self.errors.append(missing_mul_pan)
-
-            return
-        # Choose between otb or numpy methods.
-        if self.method.startswith("otb-"):
-            method = self.method.split("otb-")[-1] if self.method.startswith(
-                "otb-") else self.method  # chop off -otb prefix if present
-            from otb_apps import otb_pansharp, otb_8bit_rescale
-            try:
-                if not dry_run:
-                    otb_pansharp(inp=str(self.panchromatic),
-                                 inxs=str(self.multispectral),
-                                 method=method,
-                                 ram=ram,
-                                 out=str(output_psh),
-                                 out_dtype=self.dtype)
-            except RuntimeError as e:
-                logging.warning(e)
-                self.errors.append(e)
-                return
-        elif self.method in ["simple_brovey", "brovey", "simple_mean", "esri", "hsv"]:
-            try:
-                from pansharp_numpy import pansharpen
-            except ImportError as e:
-                logging.warning(e)
-                self.errors.append(e)
-                return
-            if not dry_run:
-                pansharpen(str(self.multispectral), (str(self.panchromatic)), method=self.method)
-        else:
-            not_impl = f"Requested pansharp method {self.method} is not implemented"
-            logging.warning(not_impl)
-            self.errors.append(not_impl)
-
-        if Path(output_psh).is_file():  # PansharpRaster object's attributes are defined as outputs are validated.
-            self.pansharp = Path(output_psh)
-            self.pansharp_size = round(self.pansharp.stat().st_size / 1024 ** 3)
-        else:
-            psh_fail = f"Failed to created pansharp: {output_psh}"
-            logging.warning(psh_fail)
-            self.errors.append(psh_fail)
-        return
 
     def rescale_trim(self,
                      out_file: Union[str, Path],
@@ -253,19 +197,136 @@ class PansharpRaster:
                         logging.warning(e)
 
 
-def cog_gdal(in_file, cog_file, ovr_file="", delete_source=False, overwrite=False):
-    # TODO: check usefulness of this function, considering this cogging process generates validation errors when checking with rio_cogeo's cog_validate
-    in_file, cog_file, ovr_file = str(in_file), str(cog_file), str(ovr_file)  # in case they are Path objects
-    if not Path(cog_file).is_file() or overwrite:
-        os.system("gdalinfo --version")
-        print("gdal_translate #1 ...")
-        # WARNING: some paths may contain spaces. Always surround paths with "" in command line as below
-        os.system("gdal_translate -of GTiff -co TILED=YES -co BIGTIFF=YES -co COMPRESS=LZW \"" + in_file + "\" \"" + cog_file + "\"")
-        print("Done gdal_translate #1; gdaladdo ...")
-        os.system("gdaladdo -r average \"" + cog_file + "\" 2 4 8 16 32")
-        print("Done gdaladdo; gdal_translate #2 ...")
-        if Path(cog_file).is_file() and delete_source:
-            print("Deleting " + in_file.split('\\')[-1] + "\n")
-            os.remove(in_file)
+def pansharpen(tile_info: TileInfo,
+               method: str = 'otb-bayes',
+               ram: int = 4096,
+               dry_run: bool = False,
+               overwrite: bool = False):
+    """
+    Pansharpens self's multispectral and panchromatic rasters
+    :param output_psh: str
+        Output pansharp path
+    :param ram: int
+        Max ram allocated to orfeo toolbox (if used) during pansharp. Default: 4 Gb
+    :param dry_run: bool
+        If True, skip time-consuming step, i.e. pansharp.
+    :return: Pansharp raster on disk
+    """
+    errors = []
+    multispectral = tile_info.parent_folder / tile_info.image_folder / tile_info.mul_tile
+    panchromatic = tile_info.parent_folder / tile_info.image_folder / tile_info.pan_tile
+
+    # Determine output name (pansharp)
+    pan_raster_splits = str(tile_info.pan_tile.stem).split(tile_info.mul_pan_patern[1][1])
+    pansharp_method = method.split("otb-")[-1] if method.startswith("otb-") else method
+    output_psh_name = (pan_raster_splits[0] + ('-PSH-%s-' % pansharp_method) +
+                       pan_raster_splits[-1] + "_" + tile_info.dtype + ".TIF")
+    output_psh_path = tile_info.parent_folder / tile_info.image_folder / tile_info.prep_folder / output_psh_name
+
+    if not (multispectral.is_file() or panchromatic.is_file()):
+        missing_mul_pan = f"Unable to pansharp due to missing mul {multispectral} or pan {panchromatic}"
+        logging.warning(missing_mul_pan)
+        errors.append(missing_mul_pan)
+        return
+    if output_psh_path.is_file() and not overwrite:
+        pan_exist = f"Pansharp already exists: {output_psh_path}"
+        logging.warning(pan_exist)
+        errors.append(pan_exist)
+        return output_psh_path
+    # Choose between otb or numpy methods.
+    if method.startswith("otb-"):
+        method = method.split("otb-")[-1]
+        from otb_apps import otb_pansharp
+        try:
+            if not dry_run:
+                otb_pansharp(inp=str(panchromatic),
+                             inxs=str(multispectral),
+                             method=method,
+                             ram=ram,
+                             out=str(output_psh_path),
+                             out_dtype=tile_info.dtype)
+        except RuntimeError as e:
+            logging.warning(e)
+            errors.append(e)
+            return
+    elif method in ["simple_brovey", "brovey", "simple_mean", "esri", "hsv"]:
+        try:
+            from pansharp_numpy import pansharpen
+        except ImportError as e:
+            logging.warning(e)
+            errors.append(e)
+            return
+        if not dry_run:
+            pansharpen(str(multispectral), (str(panchromatic)), method=method)
     else:
-        print("COG file " + cog_file + " already exists. Aborting coggification process...\n")
+        not_impl = f"Requested pansharp method {method} is not implemented"
+        logging.warning(not_impl)
+        errors.append(not_impl)
+
+    if not output_psh_path.is_file():  # PansharpRaster object's attributes are defined as outputs are validated.
+        psh_fail = f"Failed to created pansharp: {str(output_psh_path)}"
+        logging.warning(psh_fail)
+        errors.append(psh_fail)
+    return output_psh_path
+
+
+def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
+
+    infile = tile_info.last_processed_fp
+    outfile_name = Path(str(infile.stem).replace(f"_{tile_info.dtype}", "_uint8.tif")) \
+        if str(infile.stem).endswith(f"_{tile_info.dtype}") \
+        else f"{str(infile.stem)}_uint8.tif"
+    outfile = tile_info.parent_folder / tile_info.image_folder / tile_info.prep_folder / outfile_name
+
+    if validate_file_exists(outfile) and not overwrite:
+        pan_exist = f"8Bit file already exists: {outfile.name}. Will not overwrite"
+        warnings.warn(pan_exist)
+        return outfile
+
+    else:
+        options_list = ['-ot Byte', '-of GTiff', '-scale']
+        options_string = " ".join(options_list)
+
+        gdal.Translate(str(outfile), str(infile), options=options_string)
+
+    return Path(outfile)
+
+
+def rasterio_merge_tiles(image_info: ImageInfo):
+
+    p = re.compile('R\wC\w')
+    outfile_name = p.sub('Merge', str(image_info.tile_list[0].stem)) + ".tif"
+    outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)
+
+    sources = [rasterio.open(raster) for raster in image_info.tile_list]
+
+    mosaic, out_trans = merge(sources)
+    # Copy the metadata
+    out_meta = sources[0].meta.copy()
+
+    # Update the metadata
+    out_meta.update({"driver": "GTiff",
+                     "height": mosaic.shape[1],
+                     "width": mosaic.shape[2],
+                     "transform": out_trans})
+    with rasterio.open(outfile, "w", **out_meta) as dest:
+        dest.write(mosaic)
+    return outfile_name
+
+
+# def cog_gdal(in_file, cog_file, ovr_file="", delete_source=False, overwrite=False):
+#     # TODO: check usefulness of this function, considering this cogging process generates validation errors when checking with rio_cogeo's cog_validate
+#     in_file, cog_file, ovr_file = str(in_file), str(cog_file), str(ovr_file)  # in case they are Path objects
+#     if not Path(cog_file).is_file() or overwrite:
+#         os.system("gdalinfo --version")
+#         print("gdal_translate #1 ...")
+#         # WARNING: some paths may contain spaces. Always surround paths with "" in command line as below
+#         os.system("gdal_translate -of GTiff -co TILED=YES -co BIGTIFF=YES -co COMPRESS=LZW \"" + in_file + "\" \"" + cog_file + "\"")
+#         print("Done gdal_translate #1; gdaladdo ...")
+#         os.system("gdaladdo -r average \"" + cog_file + "\" 2 4 8 16 32")
+#         print("Done gdaladdo; gdal_translate #2 ...")
+#         if Path(cog_file).is_file() and delete_source:
+#             print("Deleting " + in_file.split('\\')[-1] + "\n")
+#             os.remove(in_file)
+#     else:
+#         print("COG file " + cog_file + " already exists. Aborting coggification process...\n")

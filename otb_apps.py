@@ -4,6 +4,7 @@ import subprocess
 
 logging.getLogger(__name__)
 
+
 def otb_dtype_to_pixtype(out_dtype="uint8"):
     """
     Convert desired output datatype as string to corresponding int for use in otb apps.
@@ -52,46 +53,5 @@ def otb_pansharp(inp, inxs, out, method="bayes", out_dtype="uint8", ram=1024):
             logging.warning("Make sure the environment for OTB is initialized. "
                             "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")
 
-def otb_8bit_rescale(infile, outfile, ram=4096, trim_lower=2, trim_higher=2):
-    # See: https://www.orfeo-toolbox.org/CookBook/Applications/app_DynamicConvert.html
-    try:
-        import otbApplication  # Python >3.5 compatibility issues...
-        app = otbApplication.Registry.CreateApplication("DynamicConvert")
 
-        app.SetParameterString("in", str(infile))
-        app.SetParameterString("out", str(outfile))
-        app.SetParameterString("type", "linear")
-        app.SetParameterFloat("quantile.high", trim_higher)
-        app.SetParameterFloat("quantile.low", trim_lower)
-        app.SetParameterString("channels", "all")
-        app.SetParameterFloat("outmin", 0)
-        app.SetParameterFloat("outmax", 255)
-        app.SetParameterOutputImagePixelType("out", 0)
-        app.SetParameterInt("ram", ram)
 
-        app.ExecuteAndWriteOutput()
-
-    except ImportError as e:
-        logging.warning(e)
-
-        command = f"otbcli_DynamicConvert " \
-                  f"-in \"{str(infile)}\" " \
-                  f"-out \"{str(outfile)}\" " \
-                  f"-type linear " \
-                  f"-quantile.high {trim_higher} " \
-                  f"-quantile.low {trim_lower} " \
-                  f"-ram {str(ram)} " \
-                  f"-channels all " \
-                  f"-outmin 1 " \
-                  f"-outmax 255"
-
-        if os.name == "nt" and os.getcwd().startswith("\\"):  # If OS is Windows and working directory path is UNC
-            logging.warning(f"Subprocess cannot execute cmd.exe if working directory is UNC type: {os.getcwd()}")
-            # See: https://stackoverflow.com/questions/5187160/call-subprocess-popen-when-the-working-directory-is-on-a-unc-path-not-a-mappe
-        else:
-            logging.debug(f"Trying to rescale through command-line with following command: {command}")
-            subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            if subproc.stderr:
-                logging.warning(subproc.stderr)
-                logging.warning("Make sure the environment for OTB is initialized. "
-                                "See: https://www.orfeo-toolbox.org/CookBook/Installation.html")

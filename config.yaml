@@ -1,7 +1,7 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir:
+  base_dir: C:\Users\maturgeo\Documents\Travail\image_preprocessing\subset_2
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
@@ -13,12 +13,12 @@ glob:
   out_csv: 'logs/glob_metadata.csv' # Output csv for glob process
 
 pansharp:
-  input_csv: logs/glob_metadata.csv # csv from glob process, if glob was done as separate step.
+  input_csv:  # csv from glob process, if glob was done as separate step.
   method: otb-bayes # otb-lmvm, otb-bayes, simple_brovey, brovey, simple_mean, esri, hsv
-  copy_to_8bit: True # create a uint8 copy if pansharp is uint16.
+  to_8bit: True # create a uint8 version if pansharp is uint16.
   trim: 0 # Quantiles to cut from histogram low/high values.
-  cog: False # Create and validate COG from pansharp.
-  cog_delete_source: False  # if True, deletes source image after coggifying process is done
+  # cog: False # Create and validate COG from pansharp.
+  # cog_delete_source: False  # if True, deletes source image after coggifying process is done
   overwrite: False # if True, overwrites existing output file
   dry_run: False
   log_csv: # "pansharp_log.csv" # Output csv for pansharp process

@@ -1,9 +1,11 @@
    
 # Prétraitement automatique pour Geo-Deep-Learning
 Le pipeline de prétraitement comporte trois principales étapes:
-1. **Rechercher des paires d'images multispectrale (mul) et panchromatique (pan)** ainsi que des images déjà *pansharp;
+1. **Rechercher des paires d'images multispectrale (mul) et panchromatique (pan)** ainsi que des images déjà pansharp (psh);
 2. Faire l'affinage panchromatique des paires mul/pan;
-3. Convertir les tif non-cog en tif cog.
+3. Fusionner les tuiles appartenant à la même scène en une seule image.
+4. Faire la conversion en 8bit.
+5. Créer 1 tif/bande.
 
 ## Description des besoins
 
@@ -11,7 +13,7 @@ Le pipeline de prétraitement comporte trois principales étapes:
 	- Identifier des images avec différentes extensions (i.e. pas juste .tif);
 - Effectuer l'affinage panchromatique automatique sur ces images
 - Idenfier des images déjà *pansharp*;
-- Convertir, si demandé, les images *pansharp* en sortie vers une image de type [COG](https://www.cogeo.org/);
+
 
 ## Exigences techniques (requirements)
 Python ­>= 3.6 avec librairies suivantes: 
@@ -53,7 +55,7 @@ Une solution potentielle pour éviter que l'utilisateur porte la responsabilité
 
 La ligne suivante permet d'exécuter le script à partir de la ligne de commandes:
  
-```python preprocess_pipreline.py path/to/config.yaml```
+```python preprocess_pipeline.py path/to/config.yaml```
 
 Ce script utilise le fichier de paramètres  `config.yaml` (voir section ci-dessous). Puis, ```preprocess_glob.py``` est appelé pour la recherche mul/pan (voir section «Étape 1: ...»), puis effectue le pansharp (voir section «.Étape 2: ...») et le cog (voir section «Étape 3: ...»). 
 
