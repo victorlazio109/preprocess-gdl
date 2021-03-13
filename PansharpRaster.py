@@ -204,13 +204,18 @@ def pansharpen(tile_info: TileInfo,
                overwrite: bool = False):
     """
     Pansharpens self's multispectral and panchromatic rasters
-    :param output_psh: str
-        Output pansharp path
+    :param tile_info: TileInfo
+        Image
+    :param method: str
+        Pansharpening method
     :param ram: int
         Max ram allocated to orfeo toolbox (if used) during pansharp. Default: 4 Gb
     :param dry_run: bool
         If True, skip time-consuming step, i.e. pansharp.
-    :return: Pansharp raster on disk
+    :param overwrite: Bool
+        Overwrite output if already exist.
+    :return: Path
+        Pansharpened raster file name
     """
     errors = []
     multispectral = tile_info.parent_folder / tile_info.image_folder / tile_info.mul_tile
@@ -271,7 +276,15 @@ def pansharpen(tile_info: TileInfo,
 
 
 def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
-
+    """
+    Rescale to 8 bit the input image. Uses gdal_translate.
+    :param tile_info: TileInfo
+        Image to scale
+    :param overwrite: Bool
+        Overwrite if output file already exist
+    :return: Path
+        Scaled raster file name
+    """
     infile = tile_info.last_processed_fp
     outfile_name = Path(str(infile.stem).replace(f"_{tile_info.dtype}", "_uint8.tif")) \
         if str(infile.stem).endswith(f"_{tile_info.dtype}") \
@@ -293,7 +306,13 @@ def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
 
 
 def rasterio_merge_tiles(image_info: ImageInfo):
-
+    """
+    Merge in a single tif file, multiples tifs from a list.
+    :param image_info: ImageInfo
+        Image
+    :return: Path
+        Merged raster file name
+    """
     p = re.compile('R\wC\w')
     outfile_name = p.sub('Merge', str(image_info.tile_list[0].stem)) + ".tif"
     outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)

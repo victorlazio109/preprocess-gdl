@@ -117,6 +117,7 @@ def main(input_csv: str = "",
             img.merge_img_fp = img.tile_list[0]
 
 
+
         # # 4. COGGIFY!
         # if cog:
         #     PshRaster.coggify(output_cog,
