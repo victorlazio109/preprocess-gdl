@@ -317,8 +317,10 @@ def rasterio_merge_tiles(image_info: ImageInfo):
     outfile_name = p.sub('Merge', str(image_info.tile_list[0].stem)) + ".tif"
     outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)
 
+    # Open all tiles.
     sources = [rasterio.open(raster) for raster in image_info.tile_list]
 
+    # Merge
     mosaic, out_trans = merge(sources)
     # Copy the metadata
     out_meta = sources[0].meta.copy()
@@ -328,6 +330,7 @@ def rasterio_merge_tiles(image_info: ImageInfo):
                      "height": mosaic.shape[1],
                      "width": mosaic.shape[2],
                      "transform": out_trans})
+    # Write merged image
     with rasterio.open(outfile, "w", **out_meta) as dest:
         dest.write(mosaic)
     return outfile_name
