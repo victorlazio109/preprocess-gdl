@@ -18,4 +18,4 @@ process:
   delete_intermediate_files: False  # if True, deletes all intermediate files generated during the process.
   overwrite: False # if True, overwrites existing output file
   dry_run: False
-  log_csv: # "pansharp_log.csv" # Output csv for pansharp process
+  log_csv: # "pansharp_log.csv" # Output csv to log progress
