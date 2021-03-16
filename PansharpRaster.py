@@ -7,7 +7,7 @@ import warnings
 import rasterio
 from rasterio.merge import merge
 import re
-import gdal
+from osgeo import gdal
 from preprocess_glob import TileInfo, ImageInfo
 from utils import validate_file_exists
 import xml.etree.ElementTree as ET
