@@ -6,6 +6,8 @@ from difflib import get_close_matches
 from typing import List
 import logging
 from dataclasses import dataclass
+import re
+import csv
 
 import rasterio
 from tqdm import tqdm
@@ -27,6 +29,8 @@ class TileInfo:
     psh_tile: Path = None
     prep_folder: Path = None
     last_processed_fp: Path = None
+    mul_xml: Path = None
+    errors: list = None
 
 
 @dataclass
@@ -37,19 +41,48 @@ class ImageInfo:
     tile_list: list = None
     merge_img_fp: Path = None
     band_file_list: list = None
+    mul_xml: Path = None
+    errors: str = None
 
 
-def pansharp_glob(base_dir: str,
+def list_of_tiles_from_csv(path, delimiter=";"):
+    """
+    Create list of tuples from a csv file
+    :param path: Path or str
+        path to csv file
+    :param delimiter: str
+        type of delimiter for inputted csv
+    :return:
+    """
+    assert Path(path).suffix == '.csv', ('Not a ".csv.": ' + path)
+    with open(str(path), newline='') as f:
+        reader = csv.reader(f, delimiter=delimiter)
+        # data = [tuple(row) for row in reader]
+        data = []
+        for row in reader:
+            mul_tile = Path(row[5]) if row != 'None' else None
+            pan_tile = Path(row[6]) if row != 'None' else None
+            psh_tile = Path(row[7]) if row != 'None' else None
+            last_processed_fp = Path(row[9]) if row != 'None' else None
+            process_steps = row[1].split(",")
+            mul_pan_patern = row[4].split(",")
+
+            tile = TileInfo(parent_folder=Path(row[0]), process_steps=process_steps, dtype=row[2], image_folder=Path(row[3]),
+                            mul_pan_patern=mul_pan_patern, mul_tile=mul_tile, pan_tile=pan_tile, psh_tile=psh_tile,
+                            prep_folder=Path(row[8]), last_processed_fp=last_processed_fp)
+            data.append(tile)
+    return data
+
+
+def tile_list_glob(base_dir: str,
                   mul_pan_glob: List[str] = [],
                   mul_pan_str: List[str] = [],
                   psh_glob: List[str] = [],
                   extensions: List[str] = [],
-                  pansharp_method: str = "",
                   out_csv: str = ""):
     """
     Glob through specified directories for (1) pairs of multispectral and panchromatic rasters or (2) pansharp rasters.
     Save as csv and/or return as list.
-
     :param base_dir: str
         Base directory where globbing will occur.
     :param mul_pan_glob: list of str
@@ -64,8 +97,6 @@ def pansharp_glob(base_dir: str,
         List of glob patterns to find panchromatic rasters.
     :param extensions: list of str
         List of extensions (suffixes) the raster files may bear, e.g. ["tif", "ntf"].
-    :param pansharp_method: str
-        Method (algorithm) used to pansharp the mul/pan pair of rasters
     :param out_csv: str
         Output csv where info about processed files and log messages will be saved.
     :return:
@@ -88,7 +119,8 @@ def pansharp_glob(base_dir: str,
 
     base_dir_res = Path(base_dir).resolve()  # Resolved path is useful in section 2 (search for panchromatic).
 
-    # CsvLog = CsvLogger(out_csv=out_csv)
+    if out_csv != "":
+        out_csv = CsvLogger(out_csv=out_csv, info_type='tile')
 
     glob_output_list = []
 
@@ -165,31 +197,28 @@ def pansharp_glob(base_dir: str,
             output_prep_path = Path(base_dir) / image_folder / output_path
             output_prep_path.parent.mkdir(exist_ok=True)
 
-            # Determine output name (pansharp and cog)
-            # pan_raster_splits = str(pan_raster_rel.stem).split(mul_pan_info[1][1])
-            # output_psh_name = (pan_raster_splits[0] + ('-PSH-%s-' % pansharp_method) +
-            #                    pan_raster_splits[-1] + "_" + dtype + ".TIF")
-            # output_psh_rel = output_path / output_psh_name
-            # if len(str(output_psh_rel.absolute())) >= 260:
-            #     err_mgs.append(length_err)
-            #
-            # output_cog_name = output_psh_name.replace("-PSH-{}-".format(pansharp_method),
-            #                                           "-PSH-{}-cog-".format(pansharp_method))
-            # output_cog_rel = output_path / output_cog_name
-            # if len(str(output_cog_rel.absolute())) >= 260:
-            #     err_mgs.append(length_err)
-
             process_steps = ['psh']
             if dtype != 'uint8':
                 process_steps.append('scale')
 
+            p = re.compile('_R\wC\w')
+            mul_xml_name = Path(p.sub('', str(mul_raster_rel.stem)) + '.XML')
+            mul_xml = Path(base_dir) / image_folder / mul_raster_rel.parent / mul_xml_name
+            if not validate_file_exists(mul_xml):
+                no_xml_err = f"No XML file found in {mul_xml}"
+                logging.warning(no_xml_err)
+                err_mgs.append(no_xml_err)
+                continue
+
             # create new row and append to existing records in glob_output_list.
             tile_info = TileInfo(parent_folder=Path(base_dir), image_folder=image_folder, mul_pan_patern=mul_pan_info,
-                                 mul_tile=mul_raster_rel, pan_tile=pan_raster_rel, prep_folder=output_path, dtype=dtype, process_steps=process_steps)
+                                 mul_tile=mul_raster_rel, pan_tile=pan_raster_rel, prep_folder=output_path, dtype=dtype, process_steps=process_steps,
+                                 mul_xml=mul_xml)
             # row = [str(base_dir), str(mul_raster_rel), str(pan_raster_rel), dtype, str(output_psh_rel), pansharp_method,
             #        str(output_cog_rel), err_mgs]
             # glob_output_list.append(tuple(row))
             glob_output_list.append(tile_info)
+            out_csv.write_row(tile_info)
 
     mul_pan_pairs_ct = len(glob_output_list)
     logging.info(f"Found {mul_pan_pairs_ct} pair(s) of multispectral and panchromatic rasters with provided parameters")
@@ -222,11 +251,20 @@ def pansharp_glob(base_dir: str,
                 # output_cog_rel = psh_raster_rel.parent / (psh_raster_rel.stem + "-" + psh_dtype + "-cog" + psh_raster_rel.suffix)
                 logging.debug(f"\nPansharp image found: {psh_raster_rel}\n")
 
+                p = re.compile('_R\wC\w')
+                mul_xml_name = Path(p.sub('', str(psh_raster_rel.stem)) + '.XML')
+                mul_xml = Path(base_dir) / image_folder / psh_raster_rel.parent / mul_xml_name
+                if not validate_file_exists(mul_xml):
+                    no_xml_err = f"No XML file found in {mul_xml}"
+                    logging.warning(no_xml_err)
+                    continue
+
                 process_steps = []
                 if psh_dtype != 'uint8':
                     process_steps.append('scale')
                 tile_info = TileInfo(parent_folder=Path(base_dir), image_folder=image_folder, psh_tile=psh_raster_rel, prep_folder=output_path,
-                                     dtype=psh_dtype, process_steps=process_steps, last_processed_fp=Path(base_dir) / image_folder / psh_raster_rel)
+                                     dtype=psh_dtype, process_steps=process_steps, last_processed_fp=Path(base_dir) / image_folder / psh_raster_rel,
+                                     mul_xml=mul_xml)
 
                 # row = [str(base_dir), "", "", psh_dtype, str(psh_raster_rel), "", str(output_cog_rel), ""]
                 # glob_output_list.append(tuple(row))
@@ -253,6 +291,6 @@ if __name__ == '__main__':
 
     log_config_path = Path('logging.conf').absolute()
 
-    pansharp_glob(**params['glob'], pansharp_method=params['pansharp']['method'])
+    tile_list_glob(**params['glob'], pansharp_method=params['process']['method'])
 
     logging.info("Finished")

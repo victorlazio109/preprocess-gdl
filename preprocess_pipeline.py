@@ -1,44 +1,31 @@
 import os
 import argparse
-from _ast import List
 from datetime import datetime
 from pathlib import Path
-from typing import Union
-
+import glob
 from tqdm import tqdm
 
-from PansharpRaster import PansharpRaster, pansharpen
-from utils import list_of_tuples_from_csv, read_parameters, validate_file_exists, CsvLogger
-from preprocess_glob import pansharp_glob, ImageInfo
+from PansharpRaster import pansharpen
+from utils import read_parameters, CsvLogger
+from preprocess_glob import tile_list_glob, ImageInfo, list_of_tiles_from_csv
+from PansharpRaster import rasterio_merge_tiles, gdal_split_band
 
 
 def main(input_csv: str = "",
          method: str = "otb-bayes",
-         trim: Union[int, List] = 0,
-         to_8bit: bool = True,
          max_ram = 4096,
-         cog: bool = True,
-         cog_delete_source: bool = False,
          log_csv: str = "",
          overwrite: bool = False,
          glob_params: dict = None,
-         dry_run: bool = False):
+         dry_run: bool = False,
+         delete_intermediate_files: bool = False):
     """
     Preprocess rasters according to chosen parameters. This includes pansharpening,
-    rescaling with radiometric histogram trimming and cogging rasters.
-    #FIXME: trim function is not implemented other than for uint8 copies since only these copies are processed with the DynamicConvert app
+    rescaling to 8bit, merging tiles and splitting rasters into single band images.
     :param input_csv: str
         Csv from glob process, if glob was done as separate step.
     :param method: str
         Pansharp method. Choices: otb-lmvm, otb-bayes, simple_brovey, brovey, simple_mean, esri, hsv
-    :param trim: int or list
-        Quantiles to cut from histogram low/high values.
-    :param to_8bit: bool
-        Create uint8 copy of all outputted pansharps and cogs if input's dtype is uint16
-    :param cog: bool
-        If True, coggify outputted pansharps (requires rio_cogeo)
-    :param cog_delete_source: bool
-        If True, non-cog pansharp will be deleted after cog pansharp is created and validated
     :param log_csv: str
         Name of csv where logging for individual rasters (ie one raster per row) will be recorded
     :param overwrite: bool
@@ -64,16 +51,15 @@ def main(input_csv: str = "",
     if dry_run:
         logging.warning("DRY-RUN")
 
-    CsvLog = CsvLogger(out_csv=log_csv)
+    CsvLog = CsvLogger(out_csv=log_csv, info_type='log')
 
     # 1. BUILD INPUT LIST
     ################################################################################
     # if input csv specified, build input list from it, else use pansharp_glob() function and glob parameters
     if input_csv:
-        # TODO: Review list_of_tuples_from_csv function to fit pansharp_glob_list 's output.
-        pansharp_glob_list = list_of_tuples_from_csv(input_csv, delimiter=";")
+        pansharp_glob_list = list_of_tiles_from_csv(input_csv, delimiter=";")
     else:
-        pansharp_glob_list = pansharp_glob(**glob_params, pansharp_method=method)
+        pansharp_glob_list = tile_list_glob(**glob_params)
 
     # count = ct_missing_mul_pan = count_pshped = ct_psh_exist = 0
 
@@ -82,82 +68,56 @@ def main(input_csv: str = "",
     for tile_img in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
-        # logging.debug(f"Output pansharp: {output_psh}")
 
         # 3. PANSHARP!
         ################################################################################
         if 'psh' in tile_img.process_steps:
             # then pansharp
-            toto = 1
-            tile_img.last_processed_fp = pansharpen(tile_info=tile_img, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
+            tile_img.last_processed_fp, err = pansharpen(tile_info=tile_img, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
+            tile_img.errors = err if err != '[]' else None
 
         duration = (datetime.now() - now_read).seconds / 60
 
-        if 'scale' in tile_img.process_steps:
+        if 'scale' in tile_img.process_steps and tile_img.errors is None:
             # then scale to uint8.
             from PansharpRaster import gdal_8bit_rescale
-            tile_img.last_processed_fp = gdal_8bit_rescale(tile_img)
+            tile_img.last_processed_fp, err = gdal_8bit_rescale(tile_img, overwrite=overwrite)
+            tile_img.errors = err if err else None
 
+        if tile_img.last_processed_fp is None and tile_img.psh_tile and tile_img.errors is None:
+            # Means that the original tile is already pansharpened and 8bit.
+            tile_img.last_processed_fp = tile_img.parent_folder / tile_img.image_folder / tile_img.psh_tile
+
+    
     # Group tiles per image.
-    unique_values = set([(tile.parent_folder, tile.image_folder, tile.prep_folder) for tile in pansharp_glob_list])
+    unique_values = set([(tile.parent_folder, tile.image_folder, tile.prep_folder, tile.mul_xml) for tile in pansharp_glob_list])
     list_img = []
     for elem in unique_values:
-        image_info = ImageInfo(parent_folder=elem[0], image_folder=elem[1], prep_folder=elem[2], tile_list=[])
+        image_info = ImageInfo(parent_folder=elem[0], image_folder=elem[1], prep_folder=elem[2], tile_list=[], mul_xml=elem[3])
 
         for tile in pansharp_glob_list:
             if tile.image_folder == image_info.image_folder:
                 image_info.tile_list.append(tile.last_processed_fp)
         list_img.append(image_info)
 
-    from PansharpRaster import rasterio_merge_tiles
     for img in list_img:
         if len(img.tile_list) > 1:
-            img.merge_img_fp = rasterio_merge_tiles(img)
+            img.merge_img_fp = rasterio_merge_tiles(img, overwrite=overwrite)
         else:
             img.merge_img_fp = img.tile_list[0]
 
+        # split into 1 band/tif file
+        img.band_file_list = gdal_split_band(img)
 
+        if delete_intermediate_files:
+            patern = str(img.parent_folder / img.image_folder / img.prep_folder / Path('*.tif'))
+            list_file_to_delete = [f for f in glob.glob(patern) if f not in img.band_file_list]
+            for file in list_file_to_delete:
+                try:
+                    os.remove(file)
+                except OSError as e:
+                    print("Error: %s : %s" % (file, e.strerror))
 
-        # # 4. COGGIFY!
-        # if cog:
-        #     PshRaster.coggify(output_cog,
-        #                       dry_run=dry_run,
-        #                       overwrite=overwrite,
-        #                       delete_source=cog_delete_source)
-        #
-        # # 5. UINT8 COPY, if requested and dtype is uint16
-        # # set name for 8bit copy: replace "uint16" with "uint8" if possible, else add the latter as suffix.
-        # if "uint16" in output_psh:
-        #     out_8bit = output_psh.replace("uint16", "uint8")
-        # else:
-        #     out_8bit = str(Path(output_psh).parent / f"{Path(output_psh).stem}-uint8{Path(output_psh).suffix}")
-        #
-        # if "uint16" in output_cog:
-        #     output_cog_8bit = output_cog.replace("uint16", "uint8")
-        # else:
-        #     output_cog_8bit = str(Path(output_cog).parent / f"{Path(output_cog).stem}-uint8{Path(output_cog).suffix}")
-        #
-        # # If cogged 8bit copy doesn't exist
-        # if not validate_file_exists(output_cog_8bit):
-        #     # if 8bit is requested and pansharp is 16bit
-        #     if copy_to_8bit and PshRaster.dtype == "uint16":
-        #         # if output 8bit pansharp doesn't exist or overwrite requested, RESCALE!
-        #         if not validate_file_exists(out_8bit) or overwrite:
-        #             PshRaster.rescale_trim(out_8bit, dry_run=dry_run)
-        #         else:
-        #             PshRaster.pansharp_8bit_copy = Path(out_8bit)
-        # else:
-        #     logging.info(f"\nCogged 8bit copy of pansharp already exists: {output_cog_8bit}")
-        #     PshRaster.cog_8bit_copy = Path(output_cog_8bit)
-        #
-        # if cog:
-        #     PshRaster.coggify(out_file=output_cog_8bit,
-        #                       uint8_copy=True,
-        #                       dry_run=dry_run,
-        #                       overwrite=overwrite,
-        #                       delete_source=cog_delete_source)
-        #
-        #     duration = datetime.now() - now_read
         #
         # # 5. Write metadata to CSV
         # ################################################################################
@@ -165,28 +125,25 @@ def main(input_csv: str = "",
         #        PshRaster.pansharp_8bit_copy, PshRaster.cog, PshRaster.cog_8bit_copy, PshRaster.cog_size,
         #        now_read.strftime("%Y-%m-%d_%H-%M"), duration, PshRaster.errors]
         #
-        # CsvLog.write_row(row=row)
+        CsvLog.write_row(row=row)
 
-    list_16bit = [x for x in PshRaster.all_objects if x.dtype == "uint16"]
-    list_8bit = [x for x in PshRaster.all_objects if x.dtype == "uint8"]
+    list_16bit = [x for x in pansharp_glob_list if x.dtype == "uint16"]
+    list_8bit = [x for x in pansharp_glob_list if x.dtype == "uint8"]
 
-    existing_pshps = [x for x in PshRaster.all_objects if x.pansharp]
-    existing_cogs = [x for x in PshRaster.all_objects if x.cog]
+    existing_pshps = [x for x in pansharp_glob_list if x.psh_tile]
+    non_tiled = [x for x in list_img if x.tile_list == 1]
 
     logging.info(
-        f"\nProcessed rasters: {len(PshRaster.all_objects)}"
-          f"\n\t16 bit: {len(list_16bit)}"
-          f"\n\t8 bit: {len(list_8bit)}"
-        f"\n\n*** COG pansharps ***"
-          f"\nExisting cog pansharps: {len(existing_cogs)}"
-          f"\n\t16 bit: {len([x for x in existing_cogs if x.dtype == 'uint16'])}"
-          f"\n\t\t8 bit copy: {len([x for x in PshRaster.all_objects if x.cog_8bit_copy])}"
-          f"\n\t8 bit: {len([x for x in existing_cogs if x.dtype == 'uint8'])}"
-        f"\n\n*** Non-COG pansharps ***"
-          f"\nExisting non-cog pansharps: {len(existing_pshps)}"
-          f"\n\t16 bit: {len([x for x in existing_pshps if x.dtype == 'uint16'])}"
-          f"\n\t\t8 bit copy: {len([x for x in PshRaster.all_objects if x.pansharp_8bit_copy])}"
-          f"\n\t8 bit: {len([x for x in existing_pshps if x.dtype == 'uint8'])}"
+        f"\n*** Tiles ***"
+        f"\nProcessed tiles: {len(pansharp_glob_list)}"
+        f"\n\tPansharpened: {len(pansharp_glob_list) - len(existing_pshps)}"
+        f"\n\tAlready pansharpened: {len(existing_pshps)}"
+        f"\n\t16 bit: {len(list_16bit)}"
+        f"\n\t8 bit: {len(list_8bit)}"
+        f"\n\n*** Images ***"
+        f"\nProcessed images: {len(list_img)}"
+        f"\n\tMerged: {len(list_img) - len(non_tiled)}"
+        f"\n\tNon tiled images: {len(non_tiled)}"
           )
 
     logging.info("Finished")
@@ -202,4 +159,4 @@ if __name__ == '__main__':
 
     log_config_path = Path('logging.conf').absolute()
 
-    main(**params['pansharp'], glob_params=params['glob'])
+    main(**params['process'], glob_params=params['glob'])
