@@ -30,7 +30,7 @@ class TileInfo:
     prep_folder: Path = None
     last_processed_fp: Path = None
     mul_xml: Path = None
-    errors: list = None
+    errors: str = None
 
 
 @dataclass

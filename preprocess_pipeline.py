@@ -61,8 +61,6 @@ def main(input_csv: str = "",
     else:
         pansharp_glob_list = tile_list_glob(**glob_params)
 
-    # count = ct_missing_mul_pan = count_pshped = ct_psh_exist = 0
-
     # 2. LOOP THROUGH INPUT LIST. Each item is a row with info about single image (multispectral/panchromatic, etc.)
     ################################################################################
     for tile_img in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
@@ -76,8 +74,6 @@ def main(input_csv: str = "",
             tile_img.last_processed_fp, err = pansharpen(tile_info=tile_img, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
             tile_img.errors = err if err != '[]' else None
 
-        duration = (datetime.now() - now_read).seconds / 60
-
         if 'scale' in tile_img.process_steps and tile_img.errors is None:
             # then scale to uint8.
             from PansharpRaster import gdal_8bit_rescale
@@ -88,7 +84,8 @@ def main(input_csv: str = "",
             # Means that the original tile is already pansharpened and 8bit.
             tile_img.last_processed_fp = tile_img.parent_folder / tile_img.image_folder / tile_img.psh_tile
 
-    
+        logging.info(f"Tile {tile_img.last_processed_fp.name} processed in {(datetime.now() - now_read).seconds / 60} minutes")
+
     # Group tiles per image.
     unique_values = set([(tile.parent_folder, tile.image_folder, tile.prep_folder, tile.mul_xml) for tile in pansharp_glob_list])
     list_img = []
@@ -98,18 +95,29 @@ def main(input_csv: str = "",
         for tile in pansharp_glob_list:
             if tile.image_folder == image_info.image_folder:
                 image_info.tile_list.append(tile.last_processed_fp)
+                if tile.errors and image_info.errors is None:
+                    err_msg = f"One or more tile in image {image_info.image_folder} has error during pansharpening or scaling operation. " \
+                              f"Will not proceed with merge."
+                    image_info.errors = err_msg
         list_img.append(image_info)
 
     for img in list_img:
-        if len(img.tile_list) > 1:
-            img.merge_img_fp = rasterio_merge_tiles(img, overwrite=overwrite)
+        now_read, duration = datetime.now(), 0
+        if img.errors is None:
+            if len(img.tile_list) > 1:
+                img.merge_img_fp, img.errors = rasterio_merge_tiles(img, overwrite=overwrite)
+            else:
+                img.merge_img_fp = img.tile_list[0]
         else:
-            img.merge_img_fp = img.tile_list[0]
+            logging.warning(img.errors)
 
-        # split into 1 band/tif file
-        img.band_file_list = gdal_split_band(img)
+        if img.errors is None:
+            # split into 1 band/tif file
+            img.band_file_list, img.errors = gdal_split_band(img)
+        else:
+            logging.warning(img.errors)
 
-        if delete_intermediate_files:
+        if delete_intermediate_files and img.errors is None:
             patern = str(img.parent_folder / img.image_folder / img.prep_folder / Path('*.tif'))
             list_file_to_delete = [f for f in glob.glob(patern) if f not in img.band_file_list]
             for file in list_file_to_delete:
@@ -118,14 +126,11 @@ def main(input_csv: str = "",
                 except OSError as e:
                     print("Error: %s : %s" % (file, e.strerror))
 
-        #
-        # # 5. Write metadata to CSV
-        # ################################################################################
-        # row = [PshRaster.multispectral, PshRaster.panchromatic, PshRaster.dtype, PshRaster.pansharp,
-        #        PshRaster.pansharp_8bit_copy, PshRaster.cog, PshRaster.cog_8bit_copy, PshRaster.cog_size,
-        #        now_read.strftime("%Y-%m-%d_%H-%M"), duration, PshRaster.errors]
-        #
-        CsvLog.write_row(row=row)
+        duration = (datetime.now() - now_read).seconds / 60
+        logging.info(f"Image {img.image_folder} processed in {duration} minutes")
+        row = [img.image_folder, ','.join(img.band_file_list), img.errors, duration]
+        
+        CsvLog.write_row(info=row)
 
     list_16bit = [x for x in pansharp_glob_list if x.dtype == "uint16"]
     list_8bit = [x for x in pansharp_glob_list if x.dtype == "uint8"]

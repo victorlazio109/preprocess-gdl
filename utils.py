@@ -53,7 +53,7 @@ class CsvLogger:
     def write_row(self, info):
         """
         Write a row to self.
-        :param tile: TileInfo
+        :param info:
             tile information to be added to the csv linked to self (self.out_csv)
         :return:
         """

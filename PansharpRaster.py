@@ -318,31 +318,36 @@ def rasterio_merge_tiles(image_info: ImageInfo,
     :return: Path
         Merged raster file name
     """
+    error = None
     p = re.compile('R\wC\w')
     outfile_name = p.sub('Merge', str(image_info.tile_list[0].stem)) + ".tif"
     outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)
 
     if validate_file_exists(outfile) and not overwrite:
         warnings.warn(f"Merge file already exists: {outfile.name}. Will not overwrite")
-        return Path(outfile)
+        return Path(outfile), error
 
-    # Open all tiles.
-    sources = [rasterio.open(raster) for raster in image_info.tile_list]
+    try:
+        # Open all tiles.
+        sources = [rasterio.open(raster) for raster in image_info.tile_list]
 
-    # Merge
-    mosaic, out_trans = merge(sources)
-    # Copy the metadata
-    out_meta = sources[0].meta.copy()
+        # Merge
+        mosaic, out_trans = merge(sources)
+        # Copy the metadata
+        out_meta = sources[0].meta.copy()
 
-    # Update the metadata
-    out_meta.update({"driver": "GTiff",
-                     "height": mosaic.shape[1],
-                     "width": mosaic.shape[2],
-                     "transform": out_trans})
-    # Write merged image
-    with rasterio.open(outfile, "w", **out_meta) as dest:
-        dest.write(mosaic)
-    return Path(outfile)
+        # Update the metadata
+        out_meta.update({"driver": "GTiff",
+                         "height": mosaic.shape[1],
+                         "width": mosaic.shape[2],
+                         "transform": out_trans})
+        # Write merged image
+        with rasterio.open(outfile, "w", **out_meta) as dest:
+            dest.write(mosaic)
+    except:
+        error = f"Could not merge image {image_info.image_folder}"
+
+    return Path(outfile), error
 
 
 def get_band_order(xml_file):
@@ -356,15 +361,16 @@ def get_band_order(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
     l_band_order = []
+    err_msg = None
     for t in root:
         if t.tag == 'IMD':
             l_band_order = [j.tag for j in t if str(j.tag).startswith('BAND_')]
         else:
             continue
     if not l_band_order:
-        raise ValueError(f"Could not locate band(s) name and order in provided xml file: {xml_file}")
+        err_msg = f"Could not locate band(s) name and order in provided xml file: {xml_file}"
 
-    return l_band_order
+    return l_band_order, err_msg
 
 
 def gdal_split_band(image: ImageInfo,
@@ -377,23 +383,29 @@ def gdal_split_band(image: ImageInfo,
         Overwrite files if they already exists.
     :return: List of written files.
     """
-    list_band_order = get_band_order(str(image.mul_xml))
+    list_band_order, err = get_band_order(str(image.mul_xml))
+    error = []
     infile = image.merge_img_fp
     list_band_file = []
-    for elem in list_band_order:
+    if err is None:
+        for elem in list_band_order:
 
-        out_filename = f"{image.merge_img_fp.stem}_{elem}.tif"
-        out_filepath = image.parent_folder / image.prep_folder / Path(out_filename)
+            out_filename = f"{image.merge_img_fp.stem}_{elem}.tif"
+            out_filepath = image.parent_folder / image.prep_folder / Path(out_filename)
 
-        if validate_file_exists(out_filepath) and not overwrite:
-            warnings.warn(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
-            return out_filepath
+            if validate_file_exists(out_filepath) and not overwrite:
+                warnings.warn(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
+                return out_filepath, error
 
-        else:
-            band_option = f"-b {list_band_order.index(elem) + 1}"
-            options_list = ['-of GTiff', band_option]
-            options_string = " ".join(options_list)
-
-            gdal.Translate(str(out_filepath), str(infile), options=options_string)
-        list_band_file.append(out_filepath)
-    return list_band_file
+            else:
+                band_option = f"-b {list_band_order.index(elem) + 1}"
+                options_list = ['-of GTiff', band_option]
+                options_string = " ".join(options_list)
+                try:
+                    gdal.Translate(str(out_filepath), str(infile), options=options_string)
+                except:
+                    error.append(f"Could not write singleband image {str(out_filepath)}")
+            list_band_file.append(out_filepath)
+    else:
+        error.append(err)
+    return list_band_file, error
