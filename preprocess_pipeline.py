@@ -74,13 +74,13 @@ def main(input_csv: str = "",
             tile_img.last_processed_fp, err = pansharpen(tile_info=tile_img, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
             tile_img.errors = err if err != '[]' else None
 
-        if 'scale' in tile_img.process_steps and tile_img.errors is None:
+        if 'scale' in tile_img.process_steps and not tile_img.errors:
             # then scale to uint8.
             from PansharpRaster import gdal_8bit_rescale
             tile_img.last_processed_fp, err = gdal_8bit_rescale(tile_img, overwrite=overwrite)
             tile_img.errors = err if err else None
 
-        if tile_img.last_processed_fp is None and tile_img.psh_tile and tile_img.errors is None:
+        if tile_img.last_processed_fp is None and tile_img.psh_tile and not tile_img.errors:
             # Means that the original tile is already pansharpened and 8bit.
             tile_img.last_processed_fp = tile_img.parent_folder / tile_img.image_folder / tile_img.psh_tile
 
@@ -95,7 +95,7 @@ def main(input_csv: str = "",
         for tile in pansharp_glob_list:
             if tile.image_folder == image_info.image_folder:
                 image_info.tile_list.append(tile.last_processed_fp)
-                if tile.errors and image_info.errors is None:
+                if tile.errors and not image_info.errors:
                     err_msg = f"One or more tile in image {image_info.image_folder} has error during pansharpening or scaling operation. " \
                               f"Will not proceed with merge."
                     image_info.errors = err_msg
@@ -103,7 +103,7 @@ def main(input_csv: str = "",
 
     for img in list_img:
         now_read, duration = datetime.now(), 0
-        if img.errors is None:
+        if not img.errors:
             if len(img.tile_list) > 1:
                 img.merge_img_fp, img.errors = rasterio_merge_tiles(img, overwrite=overwrite)
             else:
@@ -111,13 +111,13 @@ def main(input_csv: str = "",
         else:
             logging.warning(img.errors)
 
-        if img.errors is None:
+        if not img.errors:
             # split into 1 band/tif file
             img.band_file_list, img.errors = gdal_split_band(img)
         else:
             logging.warning(img.errors)
 
-        if delete_intermediate_files and img.errors is None:
+        if delete_intermediate_files and not img.errors:
             patern = str(img.parent_folder / img.image_folder / img.prep_folder / Path('*.tif'))
             list_file_to_delete = [f for f in glob.glob(patern) if f not in img.band_file_list]
             for file in list_file_to_delete:
@@ -128,8 +128,8 @@ def main(input_csv: str = "",
 
         duration = (datetime.now() - now_read).seconds / 60
         logging.info(f"Image {img.image_folder} processed in {duration} minutes")
-        row = [img.image_folder, ','.join(img.band_file_list), img.errors, duration]
-        
+        row = [str(img.image_folder), ','.join(str(el) for el in img.band_file_list), img.errors, str(duration)]
+
         CsvLog.write_row(info=row)
 
     list_16bit = [x for x in pansharp_glob_list if x.dtype == "uint16"]

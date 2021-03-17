@@ -391,14 +391,15 @@ def gdal_split_band(image: ImageInfo,
         for elem in list_band_order:
 
             out_filename = f"{image.merge_img_fp.stem}_{elem}.tif"
-            out_filepath = image.parent_folder / image.prep_folder / Path(out_filename)
+            out_filepath = image.parent_folder / image.image_folder / image.prep_folder / Path(out_filename)
 
             if validate_file_exists(out_filepath) and not overwrite:
                 warnings.warn(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
-                return out_filepath, error
+                return [out_filepath], error
 
             else:
-                band_option = f"-b {list_band_order.index(elem) + 1}"
+                band_num = list_band_order.index(elem) + 1
+                band_option = f"-b {band_num}"
                 options_list = ['-of GTiff', band_option]
                 options_string = " ".join(options_list)
                 try:
