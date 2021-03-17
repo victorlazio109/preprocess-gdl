@@ -190,12 +190,12 @@ def tile_list_glob(base_dir: str,
                           f"Multispectral datatype: {dtype}\n")
 
             # # Determine output path
-            common_prefix = Path(os.path.commonprefix([str(mul_raster_rel.parent.resolve()),
-                                                       str(pan_raster_rel.parent.resolve())]))
-            # common_prefix = Path(common_prefix).relative_to(Path(base_dir_res).resolve())
-            output_path = common_prefix.joinpath('PREP') if common_prefix.is_dir() else Path(str(common_prefix) + 'PREP')
+            p = re.compile('_M\w\w')
+            output_path = Path(p.sub('_PREP', str(mul_raster_rel.parent)))
             output_prep_path = Path(base_dir) / image_folder / output_path
-            output_prep_path.parent.mkdir(exist_ok=True)
+            output_prep_path.mkdir(exist_ok=True)
+            if not output_prep_path.is_dir():
+                raise ValueError(f"Could not create folder {output_prep_path}")
 
             process_steps = ['psh']
             if dtype != 'uint8':
@@ -266,17 +266,11 @@ def tile_list_glob(base_dir: str,
                                      dtype=psh_dtype, process_steps=process_steps, last_processed_fp=Path(base_dir) / image_folder / psh_raster_rel,
                                      mul_xml=mul_xml)
 
-                # row = [str(base_dir), "", "", psh_dtype, str(psh_raster_rel), "", str(output_cog_rel), ""]
-                # glob_output_list.append(tuple(row))
                 glob_output_list.append(tile_info)
+                out_csv.write_row(tile_info)
 
     psh_ct = len(glob_output_list) - mul_pan_pairs_ct
     logging.info(f'Found {psh_ct} pansharped raster(s) with provided parameters')
-
-    # Once all images were found and appended, sort, then save to csv if desired.
-    # glob_output_list = sorted(glob_output_list, key=lambda x: x[4])
-    # for row in glob_output_list:
-    #     CsvLog.write_row(row=row)
 
     return glob_output_list
 
@@ -291,6 +285,6 @@ if __name__ == '__main__':
 
     log_config_path = Path('logging.conf').absolute()
 
-    tile_list_glob(**params['glob'], pansharp_method=params['process']['method'])
+    tile_list_glob(**params['glob'])
 
     logging.info("Finished")
