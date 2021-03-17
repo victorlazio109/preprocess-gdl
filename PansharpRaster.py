@@ -293,7 +293,7 @@ def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
     outfile = tile_info.parent_folder / tile_info.image_folder / tile_info.prep_folder / outfile_name
 
     if validate_file_exists(outfile) and not overwrite:
-        warnings.warn(f"8Bit file already exists: {outfile.name}. Will not overwrite")
+        logging.warning(f"8Bit file already exists: {outfile.name}. Will not overwrite")
         return outfile, error
 
     else:
@@ -324,7 +324,7 @@ def rasterio_merge_tiles(image_info: ImageInfo,
     outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)
 
     if validate_file_exists(outfile) and not overwrite:
-        warnings.warn(f"Merge file already exists: {outfile.name}. Will not overwrite")
+        logging.warning(f"Merge file already exists: {outfile.name}. Will not overwrite")
         return Path(outfile), error
 
     try:
@@ -394,8 +394,8 @@ def gdal_split_band(image: ImageInfo,
             out_filepath = image.parent_folder / image.image_folder / image.prep_folder / Path(out_filename)
 
             if validate_file_exists(out_filepath) and not overwrite:
-                warnings.warn(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
-                return [out_filepath], error
+                logging.warning(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
+                continue
 
             else:
                 band_num = list_band_order.index(elem) + 1

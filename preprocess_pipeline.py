@@ -101,7 +101,7 @@ def main(input_csv: str = "",
                     image_info.errors = err_msg
         list_img.append(image_info)
 
-    for img in list_img:
+    for img in tqdm(list_img, desc='Merge tiles and split into singleband images'):
         now_read, duration = datetime.now(), 0
         if not img.errors:
             if len(img.tile_list) > 1:
@@ -118,6 +118,7 @@ def main(input_csv: str = "",
             logging.warning(img.errors)
 
         if delete_intermediate_files and not img.errors:
+            logging.warning('Will delete intermediate files.')
             patern = str(img.parent_folder / img.image_folder / img.prep_folder / Path('*.tif'))
             list_file_to_delete = [f for f in glob.glob(patern) if f not in img.band_file_list]
             for file in list_file_to_delete:
