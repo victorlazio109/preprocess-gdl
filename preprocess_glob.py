@@ -264,7 +264,7 @@ def tile_list_glob(base_dir: str,
                     process_steps.append('scale')
                 tile_info = TileInfo(parent_folder=Path(base_dir), image_folder=image_folder, psh_tile=psh_raster_rel, prep_folder=output_path,
                                      dtype=psh_dtype, process_steps=process_steps, last_processed_fp=Path(base_dir) / image_folder / psh_raster_rel,
-                                     mul_xml=mul_xml)
+                                     mul_xml=mul_xml, mul_pan_patern=['None'])
 
                 glob_output_list.append(tile_info)
                 out_csv.write_row(tile_info)
