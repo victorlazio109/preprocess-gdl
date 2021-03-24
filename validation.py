@@ -67,10 +67,11 @@ def main(glob_params: dict = None):
         image_info = ImageInfo(parent_folder=elem[0], image_folder=elem[1], prep_folder=elem[2], tile_list=[], mul_xml=elem[3])
         list_img.append(image_info)
 
+    error_list = []
+    val_list = []
     for img in tqdm(list_img, desc='Iterating through images'):
         bgrn_dict = {'B': '', 'G': '', 'R': '', 'N': ''}
-        error_list = []
-        val_list = []
+
         lst_img = [name for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
         for b in bgrn_dict.keys():
             p = rf"_uint8_BAND_{b}.tif"
@@ -101,8 +102,8 @@ def main(glob_params: dict = None):
         if not err_img:
             val_list.append(img_info)
 
-        err_to_table(error_list)
-        val_to_table(val_list)
+    err_to_table(error_list)
+    val_to_table(val_list)
 
 
 if __name__ == '__main__':
