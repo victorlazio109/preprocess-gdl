@@ -96,7 +96,7 @@ def pansharpen(tile_info: TileInfo,
 def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
 
     method = method.replace('gdal-', '')
-    command = f"gdal_pansharpen.py" \
+    command = f"gdal_pansharpen.py " \
               f"-of GTiff" \
               f"-r \"{str(method)}\" " \
               f" \"{str(pan)}\" \"{mul}\" " \
