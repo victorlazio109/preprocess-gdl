@@ -15,6 +15,7 @@ from rio_cogeo.profiles import cog_profiles
 time_frame = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
 print(time_frame)
 
+
 # Create Cogs
 def mem_cog(raster, meta, filename):
     config = dict(
@@ -57,6 +58,7 @@ def normalize(array):
     array -= array_min
     array /= array_max - array_min
     return array.astype(np.float32)
+
 
 def pansharpen(m, pan, method='brovey', w=0.2):
     """

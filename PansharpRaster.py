@@ -9,6 +9,7 @@ from osgeo import gdal
 from preprocess_glob import TileInfo, ImageInfo
 from utils import validate_file_exists
 import xml.etree.ElementTree as ET
+import subprocess
 
 logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ def pansharpen(tile_info: TileInfo,
             return
         if not dry_run:
             pansharpen(str(multispectral), (str(panchromatic)), method=method)
+    elif method.startswith("gdal-"):
+        gdal_pansharp(mul=str(multispectral), pan=str(panchromatic), out=str(output_psh_path), method=method)
     else:
         not_impl = f"Requested pansharp method {method} is not implemented"
         logging.warning(not_impl)
@@ -88,6 +91,22 @@ def pansharpen(tile_info: TileInfo,
         logging.warning(psh_fail)
         errors.append(psh_fail)
     return output_psh_path, str(errors)
+
+
+def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
+
+    method = method.replace('gdal-', '')
+    command = f"gdal_pansharpen.py" \
+              f"-of GTiff" \
+              f"-r \"{str(method)}\" " \
+              f" \"{str(pan)}\" \"{mul}\" " \
+              f"-ram {str(out)}"
+
+    logging.debug(f"Trying to pansharp through GDAL with following command: {command}")
+    subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if subproc.stderr:
+        logging.warning(subproc.stderr)
+        logging.warning("Make sure the environment for GDAL is initialized.")
 
 
 def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
