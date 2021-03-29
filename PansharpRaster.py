@@ -97,10 +97,10 @@ def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
 
     method = method.replace('gdal-', '')
     command = f"gdal_pansharpen.py " \
-              f"-of GTiff" \
-              f"-r \"{str(method)}\" " \
-              f" \"{str(pan)}\" \"{mul}\" " \
-              f"-ram {str(out)}"
+              f"-of GTiff " \
+              f"-r {str(method)} " \
+              f"\"{str(pan)}\" \"{mul}\" " \
+              f"\"{str(out)}\""
 
     logging.debug(f"Trying to pansharp through GDAL with following command: {command}")
     subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
