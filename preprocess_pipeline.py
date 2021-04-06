@@ -1,14 +1,15 @@
-import os
 import argparse
+import glob
+import os
+import re
 from datetime import datetime
 from pathlib import Path
-import glob
+
 from tqdm import tqdm
 
-from PansharpRaster import pansharpen
-from utils import read_parameters, CsvLogger
-from preprocess_glob import tile_list_glob, ImageInfo, list_of_tiles_from_csv
-from PansharpRaster import rasterio_merge_tiles, gdal_split_band
+from PansharpRaster import gdal_split_band, pansharpen, rasterio_merge_tiles
+from preprocess_glob import ImageInfo, list_of_tiles_from_csv, tile_list_glob
+from utils import CsvLogger, read_parameters
 
 
 def main(input_csv: str = "",
@@ -63,18 +64,42 @@ def main(input_csv: str = "",
 
     # 2. LOOP THROUGH INPUT LIST. Each item is a row with info about single image (multispectral/panchromatic, etc.)
     ################################################################################
-    for tile_img in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
+    for img_info in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
 
+        # Merge has to be done first. Otherwise it will create artefacts in other steps.
+        if 'merge' in img_info.process_steps:
+            p = re.compile('R\wC\w')
+            if 'psh' in img_info.process_steps:
+                out_mul_name = p.sub('Merge', str(img_info.mul_tile_list[0].stem)) + ".tif"
+                out_pan_name = p.sub('Merge', str(img_info.pan_tile_list[0].stem)) + ".tif"
+                out_mul_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(out_mul_name)
+                out_pan_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(out_pan_name)
+
+                img_info.mul_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.mul_tile_list, outfile=out_mul_merge,
+                                                                           overwrite=overwrite)
+                img_info.pan_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.pan_tile_list, outfile=out_pan_merge,
+                                                                           overwrite=overwrite)
+            else:
+                out_psh_name = p.sub('Merge', str(img_info.psh_tile_list[0].split('.')[0])) + ".tif"
+                out_psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(out_psh_name)
+                img_info.psh_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.mul_tile_list, outfile=out_psh_merge,
+                                                                           overwrite=overwrite)
+        else:
+            if 'psh' in img_info.process_steps:
+                img_info.mul_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.mul_tile_list[0])
+                img_info.pan_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.pan_tile_list[0])
+            else:
+                img_info.psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.psh_tile_list[0])
+
         # 3. PANSHARP!
         ################################################################################
-        if 'psh' in tile_img.process_steps:
-            # then pansharp
-            tile_img.last_processed_fp, err = pansharpen(tile_info=tile_img, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
-            tile_img.errors = err if err != '[]' else None
+        if 'psh' in img_info.process_steps:
+            img_info.psh_merge, err = pansharpen(img_info=img_info, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
+            img_info.errors = err if err != '[]' else None
 
-        if 'scale' in tile_img.process_steps and not tile_img.errors:
+        if 'scale' in img_info.process_steps and not img_info.errors:
             # then scale to uint8.
             from PansharpRaster import gdal_8bit_rescale
             tile_img.last_processed_fp, err = gdal_8bit_rescale(tile_img, overwrite=overwrite)

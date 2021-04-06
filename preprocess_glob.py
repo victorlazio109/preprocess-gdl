@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 import re
 import csv
-
+import xml.etree.ElementTree as ET
 import rasterio
 from tqdm import tqdm
 
@@ -38,10 +38,24 @@ class ImageInfo:
     parent_folder: Path
     image_folder: Path
     prep_folder: Path = None
-    tile_list: list = None
-    merge_img_fp: Path = None
+
+    mul_tile_list: list = None
+    pan_tile_list: list = None
+    psh_tile_list: list = None
+
+    mul_merge: Path = None
+    pan_merge: Path = None
+    psh_merge: Path = None
+
     band_file_list: list = None
+
     mul_xml: Path = None
+    pan_xml: Path = None
+    psh_xml: Path = None
+    process_steps: list = None
+    mul_pan_info: list = None
+    dtype: str = None
+
     errors: str = None
 
 
@@ -72,6 +86,16 @@ def list_of_tiles_from_csv(path, delimiter=";"):
                             prep_folder=Path(row[8]), last_processed_fp=last_processed_fp)
             data.append(tile)
     return data
+
+
+def get_tiles_from_xml(xml_file):
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+    filename_lst = []
+    for t in root.findall('./TIL/TILE/FILENAME'):
+        filename_lst.append(t.text)
+
+    return filename_lst
 
 
 def tile_list_glob(base_dir: str,
@@ -130,95 +154,102 @@ def tile_list_glob(base_dir: str,
         mul_glob_pattern = mul_pan_info[0][0] + "." + ext
         # FIXME: there may be compatibilty issues with glob's case sensitivity in Linux. Working ok on Windows.
         # More info: https://jdhao.github.io/2019/06/24/python_glob_case_sensitivity/
-        mul_rasters_glob = base_dir_res.glob(mul_glob_pattern)
+        mul_glob = base_dir_res.glob(mul_glob_pattern)
 
-        # Loop through glob generator object and retrieve individual multispectral images
-        for mul_raster in tqdm(mul_rasters_glob, desc='Iterating through multispectral images'):  # mul_raster being a Path object
-            mul_raster_rel = Path(mul_raster).relative_to(base_dir_res)  # Use only relative paths from here
+        # Loop through glob generator object and retrieve xml in multispectral folder
+        for mul_xml in tqdm(mul_glob, desc='Iterating through multispectral xml'):  # mul_raster being a Path object
+            mul_rel = Path(mul_xml).relative_to(base_dir_res)  # Use only relative paths from here
 
-            image_folder = mul_raster_rel.parents[1]
-            mul_raster_rel = Path(mul_raster).relative_to(base_dir_res / image_folder)
+            image_folder = mul_rel.parents[1]
+            mul_rel = Path(mul_xml).relative_to(base_dir_res / image_folder)
 
             err_mgs = []
             length_err = "Check absolute path length. May exceed 260 characters."
-            if not validate_file_exists(image_folder / mul_raster_rel):
+            if not validate_file_exists(image_folder / mul_rel):
                 err_mgs.append(length_err)
+
+            # get tile list from xml
+            lst_mul_tiles = get_tiles_from_xml(mul_xml)
 
             # 2. Find panchromatic image with relative glob pattern from multispectral pattern
             ################################################################################
             pan_glob_pattern = mul_pan_info[0][1] + "/*." + ext
             # assume panchromatic file has same extension as multispectral
-            pan_rasters_glob = sorted((image_folder / mul_raster_rel.parent).glob(pan_glob_pattern))
-            if len(pan_rasters_glob) == 0:
+            pan_glob = sorted((image_folder / mul_rel.parent).glob(pan_glob_pattern))
+            if len(pan_glob) == 0:
                 missing_pan = f"The provided glob pattern {pan_glob_pattern} could not locate a potential" \
-                              f"panchromatic raster to match {mul_raster_rel}." \
-                              f"Skipping to next multispectral raster..."
+                              f"panchromatic raster to match {mul_rel}."
                 logging.warning(missing_pan)
                 err_mgs.append(missing_pan)
                 continue
             # Replace string that identifies the raster as a multispectral for one identifying panchromatic raster
-            pan_best_guess = str(mul_raster_rel.name).replace(mul_pan_info[1][0], mul_pan_info[1][1])
+            pan_best_guess = str(mul_rel.name).replace(mul_pan_info[1][0], mul_pan_info[1][1])
             # Guess the panchromatic image's path using directory from glob results above. This file may not exist.
-            pan_best_guess_rel_path = (pan_rasters_glob[0].parent.resolve() / pan_best_guess).relative_to(base_dir_res / image_folder)
+            pan_best_guess_rel_path = (pan_glob[0].parent.resolve() / pan_best_guess).relative_to(base_dir_res / image_folder)
             # Make a list of strings from paths given by glob results above.
-            pan_rasters_str = []
-            for potential_pan in pan_rasters_glob:
+            pan_str = []
+            for potential_pan in pan_glob:
                 # Resolve paths to avoid path length problems in Windows,
                 # i.e. discard all relative references (ex.: "mul_dir/../pan_dir") making path longer
                 pot_pan_dir = potential_pan.parent.resolve()
                 pot_pan_rel = pot_pan_dir.joinpath(potential_pan.name).relative_to(base_dir_res / image_folder)
-                pan_rasters_str.append(str(pot_pan_rel))
+                pan_str.append(str(pot_pan_rel))
             # Get closest match between guessed name for panchromatic image and glob file names
-            pan_raster_rel = Path(get_close_matches(str(pan_best_guess_rel_path), pan_rasters_str)[0])
-            if not validate_file_exists(image_folder / pan_raster_rel):
-                no_panchro_err = f"Panchromatic raster not found to match multispectral raster {mul_raster_rel}"
+            pan_rel = Path(get_close_matches(str(pan_best_guess_rel_path), pan_str)[0])
+            if validate_file_exists(image_folder / pan_rel):
+                lst_pan_tiles = get_tiles_from_xml(image_folder / pan_rel)
+            else:
+                no_panchro_err = f"Panchromatic xml not found to match multispectral xml {mul_rel}"
                 logging.warning(no_panchro_err)
                 err_mgs.append(no_panchro_err)
                 continue
 
-            # 3. Define parameters for future pansharp (and more), now that we've found mul/pan pair.
-            ################################################################################
+            # Check both mul and pan lists are the same length.
+            if len(lst_mul_tiles) != len(lst_pan_tiles):
+                xml_err = f"The number of tiles in multispectral and panchromatic xmls do not match for image {image_folder}."
+                logging.warning(xml_err)
+                err_mgs.append(xml_err)
+                continue
+
+            process_steps = ['psh']
+            if len(lst_mul_tiles) >= 1:
+                process_steps.append('merge')
+            elif len(lst_mul_tiles) == 0:
+                xml_err = f"Could not find any tile in xmls for image {image_folder}."
+                logging.warning(xml_err)
+
             try:
-                raster = rasterio_raster_reader(str(image_folder / mul_raster_rel))  # Set output dtype as original multispectral dtype
+                with rasterio_raster_reader(str(mul_xml.parent / Path(lst_mul_tiles[0]))) as src:  # Set output dtype as original multispectral dtype
+                    dtype = src.meta["dtype"]
             except rasterio.errors.RasterioIOError as e:
                 logging.warning(e)
                 continue
-            dtype = raster.meta["dtype"]
 
-            logging.debug(f"\nMultispectral image: {mul_raster_rel}\n"
-                          f"Panchromatic image found: {pan_raster_rel}\n"
+            logging.debug(f"\nMultispectral: {mul_rel}\n"
+                          f"Panchromatic: {pan_rel}\n"
                           f"Multispectral datatype: {dtype}\n")
 
             # # Determine output path
             p = re.compile('_M\w\w')
-            output_path = Path(p.sub('_PREP', str(mul_raster_rel.parent)))
+            output_path = Path(p.sub('_PREP', str(mul_rel.parent)))
             output_prep_path = Path(base_dir) / image_folder / output_path
             output_prep_path.mkdir(exist_ok=True)
             if not output_prep_path.is_dir():
                 raise ValueError(f"Could not create folder {output_prep_path}")
 
-            process_steps = ['psh']
             if dtype != 'uint8':
                 process_steps.append('scale')
 
-            p = re.compile('_R\wC\w')
-            mul_xml_name = Path(p.sub('', str(mul_raster_rel.stem)) + '.XML')
-            mul_xml = Path(base_dir) / image_folder / mul_raster_rel.parent / mul_xml_name
-            if not validate_file_exists(mul_xml):
-                no_xml_err = f"No XML file found in {mul_xml}"
-                logging.warning(no_xml_err)
-                err_mgs.append(no_xml_err)
-                continue
+            mul_tile_list = [Path(base_dir) / image_folder / mul_rel.parent / Path(elem) for elem in lst_mul_tiles]
+            pan_tile_list = [Path(base_dir) / image_folder / pan_rel.parent / Path(elem) for elem in lst_pan_tiles]
 
             # create new row and append to existing records in glob_output_list.
-            tile_info = TileInfo(parent_folder=Path(base_dir), image_folder=image_folder, mul_pan_patern=mul_pan_info,
-                                 mul_tile=mul_raster_rel, pan_tile=pan_raster_rel, prep_folder=output_path, dtype=dtype, process_steps=process_steps,
-                                 mul_xml=mul_xml)
-            # row = [str(base_dir), str(mul_raster_rel), str(pan_raster_rel), dtype, str(output_psh_rel), pansharp_method,
-            #        str(output_cog_rel), err_mgs]
-            # glob_output_list.append(tuple(row))
-            glob_output_list.append(tile_info)
-            out_csv.write_row(tile_info)
+            img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, mul_tile_list=mul_tile_list,
+                                 pan_tile_list=pan_tile_list, mul_xml=mul_rel, pan_xml=pan_rel, mul_pan_info=mul_pan_info,
+                                 process_steps=process_steps, dtype=dtype)
+
+            glob_output_list.append(img_info)
+            # out_csv.write_row(img_info)
 
     mul_pan_pairs_ct = len(glob_output_list)
     logging.info(f"Found {mul_pan_pairs_ct} pair(s) of multispectral and panchromatic rasters with provided parameters")
@@ -228,46 +259,49 @@ def tile_list_glob(base_dir: str,
     if psh_glob:  # if config file contains any search pattern, glob.
         for psh_glob_item, ext in product(psh_glob, extensions):
             psh_glob_pattern = psh_glob_item + "." + ext
-            psh_rasters_glob = base_dir_res.glob(psh_glob_pattern)
-            for psh_raster in tqdm(psh_rasters_glob, desc="Iterating through already pansharped images"):
-                try:
-                    raster = rasterio_raster_reader(str(psh_raster))  # Set output dtype as original multispectral dtype
-                except rasterio.errors.RasterioIOError as e:
-                    logging.warning(e)
-                    continue
-                psh_dtype = raster.meta["dtype"]
+            psh_xml_glob = base_dir_res.glob(psh_glob_pattern)
+            for psh_xml in tqdm(psh_xml_glob, desc="Iterating through already pansharped images"):
 
-                psh_raster_rel = Path(psh_raster).relative_to(base_dir_res)  # Use only relative paths
-                image_folder = psh_raster_rel.parents[1]
-                psh_raster_rel = Path(psh_raster).relative_to(base_dir_res / image_folder)
+                psh_rel = Path(psh_xml).relative_to(base_dir_res)  # Use only relative paths
+                image_folder = psh_rel.parents[1]
+                psh_rel = Path(psh_xml).relative_to(base_dir_res / image_folder)
 
-                # # Determine output path
-
-                output_path = Path('_'.join(str(psh_raster_rel.parent).split('_')[:-1]) + '_PREP')
-
-                output_prep_path = Path(base_dir) / image_folder / output_path
-                output_prep_path.mkdir(exist_ok=True)
-
-                # output_cog_rel = psh_raster_rel.parent / (psh_raster_rel.stem + "-" + psh_dtype + "-cog" + psh_raster_rel.suffix)
-                logging.debug(f"\nPansharp image found: {psh_raster_rel}\n")
-
-                p = re.compile('_R\wC\w')
-                mul_xml_name = Path(p.sub('', str(psh_raster_rel.stem)) + '.XML')
-                mul_xml = Path(base_dir) / image_folder / psh_raster_rel.parent / mul_xml_name
-                if not validate_file_exists(mul_xml):
-                    no_xml_err = f"No XML file found in {mul_xml}"
+                if validate_file_exists(psh_xml):
+                    lst_psh_tiles = get_tiles_from_xml(psh_xml)
+                else:
+                    no_xml_err = f"No XML file found in {psh_xml}"
                     logging.warning(no_xml_err)
                     continue
 
                 process_steps = []
+                if len(lst_psh_tiles) >= 1:
+                    process_steps.append('merge')
+                elif len(lst_psh_tiles) == 0:
+                    xml_err = f"Could not find any tile in xmls for image {image_folder}."
+                    logging.warning(xml_err)
+
+                try:
+                    with rasterio_raster_reader(str(psh_xml.parent / Path(lst_psh_tiles[0]))) as src:
+                        psh_dtype = src.meta["dtype"]
+                except rasterio.errors.RasterioIOError as e:
+                    logging.warning(e)
+                    continue
+
+                # Determine output path
+                output_path = Path('_'.join(str(psh_rel.parent).split('_')[:-1]) + '_PREP')
+
+                output_prep_path = Path(base_dir) / image_folder / output_path
+                output_prep_path.mkdir(exist_ok=True)
+
+                logging.debug(f"\nPansharp image found: {psh_rel}\n")
+
                 if psh_dtype != 'uint8':
                     process_steps.append('scale')
-                tile_info = TileInfo(parent_folder=Path(base_dir), image_folder=image_folder, psh_tile=psh_raster_rel, prep_folder=output_path,
-                                     dtype=psh_dtype, process_steps=process_steps, last_processed_fp=Path(base_dir) / image_folder / psh_raster_rel,
-                                     mul_xml=mul_xml, mul_pan_patern=['None'])
+                img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, psh_tile_list=lst_psh_tiles,
+                                     dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps, mul_pan_info=psh_glob_pattern)
 
-                glob_output_list.append(tile_info)
-                out_csv.write_row(tile_info)
+                glob_output_list.append(img_info)
+                # out_csv.write_row(img_info)
 
     psh_ct = len(glob_output_list) - mul_pan_pairs_ct
     logging.info(f'Found {psh_ct} pansharped raster(s) with provided parameters')

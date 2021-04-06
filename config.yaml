@@ -1,21 +1,21 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir: /path/to/dir
+  base_dir: C:\Users\maturgeo\Documents\Travail\image_preprocessing\subset
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
   mul_pan_str: # See README
     1: ["-M", "-P"]
     2: ["_MSI", "_PAN"]
-  psh_glob: ["**/*_PSH/*_P00?"] # See README
-  extensions: ["tif", "ntf"] # list of all possible extensions the raster files may have. Case-sensitive on Linux.
+  psh_glob: ["**/*_PSH/*_P00?", "**/*_MOS/*_P00?"] # See README
+  extensions: ["XML"] # list of all possible extensions the raster files may have. Case-sensitive on Linux.
   out_csv: 'logs/glob_metadata.csv' # Output csv for glob process
 
 process:
   input_csv:  # csv from glob process, if glob was done as separate step.
-  method: otb-bayes # otb-lmvm, otb-bayes, simple_brovey, brovey, simple_mean, esri, hsv
+  method: gdal-cubic # otb-lmvm, otb-bayes, simple_brovey, brovey, simple_mean, esri, hsv, gdal-cubic
   delete_intermediate_files: False  # if True, deletes all intermediate files generated during the process.
   overwrite: False # if True, overwrites existing output file
   dry_run: False
-  log_csv: # "pansharp_log.csv" # Output csv to log progress
+  log_csv: 'logs/_log.csv' # Output csv to log progress

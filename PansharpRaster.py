@@ -14,14 +14,14 @@ import subprocess
 logging.getLogger(__name__)
 
 
-def pansharpen(tile_info: TileInfo,
+def pansharpen(img_info: ImageInfo,
                method: str = 'otb-bayes',
                ram: int = 4096,
                dry_run: bool = False,
                overwrite: bool = False):
     """
     Pansharpens self's multispectral and panchromatic rasters
-    :param tile_info: TileInfo
+    :param img_info: ImageInfo
         Image
     :param method: str
         Pansharpening method
@@ -35,15 +35,15 @@ def pansharpen(tile_info: TileInfo,
         Pansharpened raster file name
     """
     errors = []
-    multispectral = tile_info.parent_folder / tile_info.image_folder / tile_info.mul_tile
-    panchromatic = tile_info.parent_folder / tile_info.image_folder / tile_info.pan_tile
+    multispectral = img_info.parent_folder / img_info.image_folder / img_info.mul_merge
+    panchromatic = img_info.parent_folder / img_info.image_folder / img_info.pan_merge
 
     # Determine output name (pansharp)
-    pan_raster_splits = str(tile_info.pan_tile.stem).split(tile_info.mul_pan_patern[1][1])
+    pan_raster_splits = str(img_info.pan_merge.stem).split(img_info.mul_pan_info[1][1])
     pansharp_method = method.split("otb-")[-1] if method.startswith("otb-") else method
     output_psh_name = (pan_raster_splits[0] + ('-PSH-%s-' % pansharp_method) +
-                       pan_raster_splits[-1] + "_" + tile_info.dtype + ".TIF")
-    output_psh_path = tile_info.parent_folder / tile_info.image_folder / tile_info.prep_folder / output_psh_name
+                       pan_raster_splits[-1] + "_" + img_info.dtype + ".TIF")
+    output_psh_path = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / output_psh_name
 
     if not (multispectral.is_file() or panchromatic.is_file()):
         missing_mul_pan = f"Unable to pansharp due to missing mul {multispectral} or pan {panchromatic}"
@@ -65,7 +65,7 @@ def pansharpen(tile_info: TileInfo,
                              method=method,
                              ram=ram,
                              out=str(output_psh_path),
-                             out_dtype=tile_info.dtype)
+                             out_dtype=img_info.dtype)
         except RuntimeError as e:
             logging.warning(e)
             errors.append(e)
@@ -102,11 +102,10 @@ def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
               f"\"{str(pan)}\" \"{mul}\" " \
               f"\"{str(out)}\""
 
-    logging.debug(f"Trying to pansharp through GDAL with following command: {command}")
     subproc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if subproc.stderr:
         logging.warning(subproc.stderr)
-        logging.warning("Make sure the environment for GDAL is initialized.")
+        logging.warning(f"could not pansharp with the following command: {command} ")
 
 
 def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
@@ -131,18 +130,19 @@ def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
         return outfile, error
 
     else:
-        try:
-            options_list = ['-ot Byte', '-of GTiff', '-scale']
-            options_string = " ".join(options_list)
+        options_list = ['-ot Byte', '-of GTiff', '-scale']
+        options_string = " ".join(options_list)
 
-            gdal.Translate(str(outfile), str(infile), options=options_string)
-        except:
+        gdal.Translate(str(outfile), str(infile), options=options_string)
+
+        if not validate_file_exists(outfile):
             error = f"ERROR: Could not scale {str(outfile)}"
+            logging.error(error)
 
     return Path(outfile), error
 
 
-def rasterio_merge_tiles(image_info: ImageInfo,
+def rasterio_merge_tiles(tile_list, outfile,
                          overwrite: bool = False):
     """
     Merge in a single tif file, multiples tifs from a list.
@@ -153,33 +153,30 @@ def rasterio_merge_tiles(image_info: ImageInfo,
         Merged raster file name
     """
     error = None
-    p = re.compile('R\wC\w')
-    outfile_name = p.sub('Merge', str(image_info.tile_list[0].stem)) + ".tif"
-    outfile = str(image_info.parent_folder / image_info.image_folder / image_info.prep_folder) / Path(outfile_name)
 
     if validate_file_exists(outfile) and not overwrite:
         logging.warning(f"Merge file already exists: {outfile.name}. Will not overwrite")
         return Path(outfile), error
 
-    try:
-        # Open all tiles.
-        sources = [rasterio.open(raster) for raster in image_info.tile_list]
+    # Open all tiles.
+    sources = [rasterio.open(raster) for raster in tile_list]
 
-        # Merge
-        mosaic, out_trans = merge(sources)
-        # Copy the metadata
-        out_meta = sources[0].meta.copy()
+    # Merge
+    mosaic, out_trans = merge(sources)
+    # Copy the metadata
+    out_meta = sources[0].meta.copy()
 
-        # Update the metadata
-        out_meta.update({"driver": "GTiff",
-                         "height": mosaic.shape[1],
-                         "width": mosaic.shape[2],
-                         "transform": out_trans})
-        # Write merged image
-        with rasterio.open(outfile, "w", **out_meta) as dest:
-            dest.write(mosaic)
-    except:
-        error = f"Could not merge image {image_info.image_folder}"
+    # Update the metadata
+    out_meta.update({"driver": "GTiff",
+                     "height": mosaic.shape[1],
+                     "width": mosaic.shape[2],
+                     "transform": out_trans})
+    # Write merged image
+    with rasterio.open(outfile, "w", **out_meta) as dest:
+        dest.write(mosaic)
+    if not validate_file_exists(outfile):
+        error = f"Could not merge image {outfile.stem}"
+        logging.error(error)
 
     return Path(outfile), error
 
