@@ -108,7 +108,7 @@ def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
         logging.warning(f"could not pansharp with the following command: {command} ")
 
 
-def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
+def gdal_8bit_rescale(infile, outfile, overwrite=False):
     """
     Rescale to 8 bit the input image. Uses gdal_translate.
     :param tile_info: TileInfo
@@ -119,11 +119,6 @@ def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
         Scaled raster file name
     """
     error = None
-    infile = tile_info.last_processed_fp
-    outfile_name = Path(str(infile.stem).replace(f"_{tile_info.dtype}", "_uint8.tif")) \
-        if str(infile.stem).endswith(f"_{tile_info.dtype}") \
-        else f"{str(infile.stem)}_uint8.tif"
-    outfile = tile_info.parent_folder / tile_info.image_folder / tile_info.prep_folder / outfile_name
 
     if validate_file_exists(outfile) and not overwrite:
         logging.warning(f"8Bit file already exists: {outfile.name}. Will not overwrite")
@@ -139,7 +134,7 @@ def gdal_8bit_rescale(tile_info: TileInfo, overwrite=False):
             error = f"ERROR: Could not scale {str(outfile)}"
             logging.error(error)
 
-    return Path(outfile), error
+    return error
 
 
 def rasterio_merge_tiles(tile_list, outfile,
@@ -204,7 +199,7 @@ def get_band_order(xml_file):
     return l_band_order, err_msg
 
 
-def gdal_split_band(image: ImageInfo,
+def gdal_split_band(img_file, xml_file,
                     overwrite: bool = False):
     """
     Split multi band file into single band files.
@@ -214,15 +209,14 @@ def gdal_split_band(image: ImageInfo,
         Overwrite files if they already exists.
     :return: List of written files.
     """
-    list_band_order, err = get_band_order(str(image.mul_xml))
+    list_band_order, err = get_band_order(str(xml_file))
     error = []
-    infile = image.merge_img_fp
     list_band_file = []
     if err is None:
         for elem in list_band_order:
 
-            out_filename = f"{image.merge_img_fp.stem}_{elem}.tif"
-            out_filepath = image.parent_folder / image.image_folder / image.prep_folder / Path(out_filename)
+            out_filename = Path(f"{img_file.stem}_{elem}.tif")
+            out_filepath = img_file.parent / out_filename
 
             if validate_file_exists(out_filepath) and not overwrite:
                 logging.warning(f"{elem} file already exists: {out_filepath.name}. Will not overwrite")
@@ -233,11 +227,14 @@ def gdal_split_band(image: ImageInfo,
                 band_option = f"-b {band_num}"
                 options_list = ['-of GTiff', band_option]
                 options_string = " ".join(options_list)
-                try:
-                    gdal.Translate(str(out_filepath), str(infile), options=options_string)
-                except:
-                    error.append(f"Could not write singleband image {str(out_filepath)}")
+                gdal.Translate(str(out_filepath), str(img_file), options=options_string)
+
+                if not validate_file_exists(out_filepath):
+                    err = f"Could not write singleband image {str(out_filepath)}"
+                    error.append(err)
+                    logging.error(err)
             list_band_file.append(out_filepath)
     else:
         error.append(err)
+        logging.error(err)
     return list_band_file, error

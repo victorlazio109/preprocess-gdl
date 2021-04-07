@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from PansharpRaster import gdal_split_band, pansharpen, rasterio_merge_tiles
+from PansharpRaster import gdal_split_band, pansharpen, rasterio_merge_tiles, gdal_8bit_rescale
 from preprocess_glob import ImageInfo, list_of_tiles_from_csv, tile_list_glob
 from utils import CsvLogger, read_parameters
 
@@ -82,7 +82,7 @@ def main(input_csv: str = "",
                 img_info.pan_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.pan_tile_list, outfile=out_pan_merge,
                                                                            overwrite=overwrite)
             else:
-                out_psh_name = p.sub('Merge', str(img_info.psh_tile_list[0].split('.')[0])) + ".tif"
+                out_psh_name = p.sub('Merge', str(img_info.psh_tile_list[0].stem)) + ".tif"
                 out_psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(out_psh_name)
                 img_info.psh_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.mul_tile_list, outfile=out_psh_merge,
                                                                            overwrite=overwrite)
@@ -93,59 +93,35 @@ def main(input_csv: str = "",
             else:
                 img_info.psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.psh_tile_list[0])
 
-        # 3. PANSHARP!
-        ################################################################################
+        # Pansharpening
         if 'psh' in img_info.process_steps:
             img_info.psh_merge, err = pansharpen(img_info=img_info, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
             img_info.errors = err if err != '[]' else None
 
+        # Scale to 8 bit
         if 'scale' in img_info.process_steps and not img_info.errors:
             # then scale to uint8.
-            from PansharpRaster import gdal_8bit_rescale
-            tile_img.last_processed_fp, err = gdal_8bit_rescale(tile_img, overwrite=overwrite)
-            tile_img.errors = err if err else None
-
-        if tile_img.last_processed_fp is None and tile_img.psh_tile and not tile_img.errors:
-            # Means that the original tile is already pansharpened and 8bit.
-            tile_img.last_processed_fp = tile_img.parent_folder / tile_img.image_folder / tile_img.psh_tile
-
-        logging.info(f"Tile {tile_img.last_processed_fp.name} processed in {(datetime.now() - now_read).seconds / 60} minutes")
-
-    # Group tiles per image.
-    unique_values = set([(tile.parent_folder, tile.image_folder, tile.prep_folder, tile.mul_xml) for tile in pansharp_glob_list])
-    list_img = []
-    for elem in unique_values:
-        image_info = ImageInfo(parent_folder=elem[0], image_folder=elem[1], prep_folder=elem[2], tile_list=[], mul_xml=elem[3])
-
-        for tile in pansharp_glob_list:
-            if tile.image_folder == image_info.image_folder:
-                image_info.tile_list.append(tile.last_processed_fp)
-                if tile.errors and not image_info.errors:
-                    err_msg = f"One or more tile in image {image_info.image_folder} has error during pansharpening or scaling operation. " \
-                              f"Will not proceed with merge."
-                    image_info.errors = err_msg
-        list_img.append(image_info)
-
-    for img in tqdm(list_img, desc='Merge tiles and split into singleband images'):
-        now_read, duration = datetime.now(), 0
-        if not img.errors:
-            if len(img.tile_list) > 1:
-                img.merge_img_fp, img.errors = rasterio_merge_tiles(img, overwrite=overwrite)
+            in_name = img_info.psh_merge.stem
+            if str(in_name).endswith(f"_{img_info.dtype}"):
+                outfile_name = Path(str(in_name).replace(f"_{img_info.dtype}", "_uint8.tif"))
             else:
-                img.merge_img_fp = img.tile_list[0]
+                outfile_name = Path(f"{str(in_name)}_uint8.tif")
+            outfile = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / outfile_name
+            err = gdal_8bit_rescale(infile=img_info.psh_merge, outfile=outfile, overwrite=overwrite)
+            img_info.errors = err if err else None
+            img_info.scale_img = outfile
         else:
-            logging.warning(img.errors)
+            img_info.scale_img = img_info.psh_merge
 
-        if not img.errors:
-            # split into 1 band/tif file
-            img.band_file_list, img.errors = gdal_split_band(img)
-        else:
-            logging.warning(img.errors)
+        # Split into singleband images
+        if not img_info.errors:
+            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, img_info)
 
-        if delete_intermediate_files and not img.errors:
+        # Delete intemerdiate files
+        if delete_intermediate_files and not img_info.errors:
             logging.warning('Will delete intermediate files.')
-            patern = str(img.parent_folder / img.image_folder / img.prep_folder / Path('*.tif'))
-            list_file_to_delete = [f for f in glob.glob(patern) if f not in img.band_file_list]
+            patern = str(img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path('*.tif'))
+            list_file_to_delete = [f for f in glob.glob(patern) if f not in img_info.band_file_list]
             for file in list_file_to_delete:
                 try:
                     os.remove(file)
@@ -153,27 +129,24 @@ def main(input_csv: str = "",
                     print("Error: %s : %s" % (file, e.strerror))
 
         duration = (datetime.now() - now_read).seconds / 60
-        logging.info(f"Image {img.image_folder} processed in {duration} minutes")
-        row = [str(img.image_folder), ','.join(str(el) for el in img.band_file_list), img.errors, str(duration)]
+        logging.info(f"Image {img_info.image_folder} processed in {duration} minutes")
 
-        CsvLog.write_row(info=row)
+        # CsvLog.write_row(info=row)
 
     list_16bit = [x for x in pansharp_glob_list if x.dtype == "uint16"]
     list_8bit = [x for x in pansharp_glob_list if x.dtype == "uint8"]
 
-    existing_pshps = [x for x in pansharp_glob_list if x.psh_tile]
-    non_tiled = [x for x in list_img if x.tile_list == 1]
+    existing_pshps = [x for x in pansharp_glob_list if x.psh_tile_list]
+    non_tiled = [x for x in pansharp_glob_list if 'merge' not in x.process_steps]
 
     logging.info(
-        f"\n*** Tiles ***"
+        f"\n*** Images ***"
         f"\nProcessed tiles: {len(pansharp_glob_list)}"
         f"\n\tPansharpened: {len(pansharp_glob_list) - len(existing_pshps)}"
         f"\n\tAlready pansharpened: {len(existing_pshps)}"
         f"\n\t16 bit: {len(list_16bit)}"
         f"\n\t8 bit: {len(list_8bit)}"
-        f"\n\n*** Images ***"
-        f"\nProcessed images: {len(list_img)}"
-        f"\n\tMerged: {len(list_img) - len(non_tiled)}"
+        f"\n\tMerged images: {len(pansharp_glob_list) - len(non_tiled)}"
         f"\n\tNon tiled images: {len(non_tiled)}"
           )
 
