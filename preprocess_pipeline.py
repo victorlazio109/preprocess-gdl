@@ -67,7 +67,7 @@ def main(input_csv: str = "",
     for img_info in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
-
+        t = tqdm(total=5)
         # Merge has to be done first. Otherwise it will create artefacts in other steps.
         if 'merge' in img_info.process_steps:
             p = re.compile('R\wC\w')
@@ -92,12 +92,12 @@ def main(input_csv: str = "",
                 img_info.pan_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.pan_tile_list[0])
             else:
                 img_info.psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.psh_tile_list[0])
-
+        t.update()
         # Pansharpening
         if 'psh' in img_info.process_steps:
             img_info.psh_merge, err = pansharpen(img_info=img_info, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
             img_info.errors = err if err != '[]' else None
-
+        t.update()
         # Scale to 8 bit
         if 'scale' in img_info.process_steps and not img_info.errors:
             # then scale to uint8.
@@ -112,11 +112,11 @@ def main(input_csv: str = "",
             img_info.scale_img = outfile
         else:
             img_info.scale_img = img_info.psh_merge
-
+        t.update()
         # Split into singleband images
         if not img_info.errors:
-            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, img_info)
-
+            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, img_info.mul_xml)
+        t.update()
         # Delete intemerdiate files
         if delete_intermediate_files and not img_info.errors:
             logging.warning('Will delete intermediate files.')
@@ -127,7 +127,7 @@ def main(input_csv: str = "",
                     os.remove(file)
                 except OSError as e:
                     print("Error: %s : %s" % (file, e.strerror))
-
+        t.close()
         duration = (datetime.now() - now_read).seconds / 60
         logging.info(f"Image {img_info.image_folder} processed in {duration} minutes")
 
