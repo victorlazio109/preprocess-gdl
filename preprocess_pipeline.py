@@ -60,7 +60,7 @@ def main(method: str = "gdal-cubic",
     # 2. LOOP THROUGH INPUT LIST. Each item is a row with info about single image (multispectral/panchromatic, etc.)
     ################################################################################
     for img_info in pansharp_glob_list:
-        logging.log(f"Processing image {pansharp_glob_list.index(img_info) + 1} / {len(pansharp_glob_list)}")
+        logging.info(msg=f"Processing image {pansharp_glob_list.index(img_info) + 1} / {len(pansharp_glob_list)}")
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
         t = tqdm(total=5)
