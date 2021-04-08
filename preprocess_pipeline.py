@@ -115,7 +115,7 @@ def main(method: str = "gdal-cubic",
                 xml_f = img_info.parent_folder / img_info.image_folder / img_info.mul_xml
             else:
                 xml_f = img_info.parent_folder / img_info.image_folder / img_info.psh_xml
-            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, xml_f)
+            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.im_name, img_info.scale_img, xml_f)
         t.update()
         # Delete intemerdiate files
         if delete_intermediate_files and not img_info.errors:

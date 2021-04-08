@@ -19,6 +19,7 @@ logging.getLogger(__name__)
 class ImageInfo:
     parent_folder: Path
     image_folder: Path
+    im_name: str
     prep_folder: Path = None
 
     mul_tile_list: list = None
@@ -49,6 +50,27 @@ def get_tiles_from_xml(xml_file):
         filename_lst.append(t.text)
 
     return filename_lst
+
+
+def get_img_name_from_img_folder(img_folder):
+    # dirty but works...
+    lst_part = str(img_folder).split('_')
+    im_name = ""
+
+    if re.search(r'\d+$', lst_part[0]) is not None:
+        # for cases like 'ON10_...'
+        im_name = lst_part[0]
+    elif re.search(r'\d+$', lst_part[1]) is not None:
+        # for cases like 'ON_10_...'
+        im_name = lst_part[0] + lst_part[1]
+
+    if re.search(r'P00\d$', lst_part[1]) is not None:
+        # for cases like 'ON10_P001'
+        im_name += lst_part[1]
+    elif re.search(r'P00\d$', lst_part[2]) is not None:
+        # for cases like 'ON_10_P001'
+        im_name += lst_part[2]
+    return im_name
 
 
 def tile_list_glob(base_dir: str,
@@ -189,10 +211,12 @@ def tile_list_glob(base_dir: str,
             mul_tile_list = [Path(base_dir) / image_folder / mul_rel.parent / Path(elem) for elem in lst_mul_tiles]
             pan_tile_list = [Path(base_dir) / image_folder / pan_rel.parent / Path(elem) for elem in lst_pan_tiles]
 
+            im_name = get_img_name_from_img_folder(image_folder)
+
             # create new row and append to existing records in glob_output_list.
-            img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, mul_tile_list=mul_tile_list,
-                                 pan_tile_list=pan_tile_list, mul_xml=mul_rel, pan_xml=pan_rel, mul_pan_info=mul_pan_info,
-                                 process_steps=process_steps, dtype=dtype)
+            img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, im_name=im_name, prep_folder=output_path,
+                                 mul_tile_list=mul_tile_list, pan_tile_list=pan_tile_list, mul_xml=mul_rel, pan_xml=pan_rel,
+                                 mul_pan_info=mul_pan_info, process_steps=process_steps, dtype=dtype)
 
             glob_output_list.append(img_info)
 
@@ -243,9 +267,11 @@ def tile_list_glob(base_dir: str,
                 if psh_dtype != 'uint8':
                     process_steps.append('scale')
 
+                im_name = get_img_name_from_img_folder(image_folder)
                 psh_tile_list = [Path(base_dir) / image_folder / psh_rel.parent / Path(elem) for elem in lst_psh_tiles]
-                img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, psh_tile_list=psh_tile_list,
-                                     dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps, mul_pan_info=psh_glob_pattern)
+                img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, im_name=im_name, prep_folder=output_path,
+                                     psh_tile_list=psh_tile_list, dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps,
+                                     mul_pan_info=psh_glob_pattern)
 
                 glob_output_list.append(img_info)
 

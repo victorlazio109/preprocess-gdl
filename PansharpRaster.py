@@ -216,7 +216,7 @@ def get_band_order(xml_file):
     return l_band_order, err_msg
 
 
-def gdal_split_band(img_file, xml_file,
+def gdal_split_band(im_name, img_file, xml_file,
                     overwrite: bool = False):
     """
     Split multi band file into single band files.
@@ -234,7 +234,7 @@ def gdal_split_band(img_file, xml_file,
     if err is None:
         for elem in list_band_order:
 
-            out_filename = Path(f"{img_file.stem}_{elem}.tif")
+            out_filename = Path(f"{im_name}_{img_file.stem}_{elem}.tif")
             out_filepath = img_file.parent / out_filename
 
             if validate_file_exists(out_filepath) and not overwrite:
