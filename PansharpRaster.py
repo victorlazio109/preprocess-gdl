@@ -122,7 +122,7 @@ def gdal_8bit_rescale(infile, outfile, overwrite=False):
 
     if validate_file_exists(outfile) and not overwrite:
         logging.warning(f"8Bit file already exists: {outfile.name}. Will not overwrite")
-        return outfile, error
+        return error
 
     else:
         options_list = ['-ot Byte', '-of GTiff', '-scale']
@@ -153,8 +153,12 @@ def rasterio_merge_tiles(tile_list, outfile,
         logging.warning(f"Merge file already exists: {outfile.name}. Will not overwrite")
         return Path(outfile), error
 
-    # Open all tiles.
-    sources = [rasterio.open(raster) for raster in tile_list]
+    try:
+        # Open all tiles.
+        sources = [rasterio.open(raster) for raster in tile_list]
+    except rasterio.errors.RasterioIOError as err:
+        logging.error(err)
+        return Path(outfile), err
 
     # Merge
     mosaic, out_trans = merge(sources)

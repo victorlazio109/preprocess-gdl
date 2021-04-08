@@ -212,7 +212,7 @@ def tile_list_glob(base_dir: str,
                 continue
 
             process_steps = ['psh']
-            if len(lst_mul_tiles) >= 1:
+            if len(lst_mul_tiles) > 1:
                 process_steps.append('merge')
             elif len(lst_mul_tiles) == 0:
                 xml_err = f"Could not find any tile in xmls for image {image_folder}."
@@ -274,7 +274,7 @@ def tile_list_glob(base_dir: str,
                     continue
 
                 process_steps = []
-                if len(lst_psh_tiles) >= 1:
+                if len(lst_psh_tiles) > 1:
                     process_steps.append('merge')
                 elif len(lst_psh_tiles) == 0:
                     xml_err = f"Could not find any tile in xmls for image {image_folder}."
@@ -297,7 +297,9 @@ def tile_list_glob(base_dir: str,
 
                 if psh_dtype != 'uint8':
                     process_steps.append('scale')
-                img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, psh_tile_list=lst_psh_tiles,
+
+                psh_tile_list = [Path(base_dir) / image_folder / psh_rel.parent / Path(elem) for elem in lst_psh_tiles]
+                img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, prep_folder=output_path, psh_tile_list=psh_tile_list,
                                      dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps, mul_pan_info=psh_glob_pattern)
 
                 glob_output_list.append(img_info)

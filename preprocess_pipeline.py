@@ -64,7 +64,8 @@ def main(input_csv: str = "",
 
     # 2. LOOP THROUGH INPUT LIST. Each item is a row with info about single image (multispectral/panchromatic, etc.)
     ################################################################################
-    for img_info in tqdm(pansharp_glob_list, desc='Iterating through mul/pan pairs list'):
+    for img_info in pansharp_glob_list:
+        logging.log(f"Processing image {pansharp_glob_list.index(img_info) + 1} / {len(pansharp_glob_list)}")
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
         t = tqdm(total=5)
@@ -84,7 +85,7 @@ def main(input_csv: str = "",
             else:
                 out_psh_name = p.sub('Merge', str(img_info.psh_tile_list[0].stem)) + ".tif"
                 out_psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(out_psh_name)
-                img_info.psh_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.mul_tile_list, outfile=out_psh_merge,
+                img_info.psh_merge, img_info.errors = rasterio_merge_tiles(tile_list=img_info.psh_tile_list, outfile=out_psh_merge,
                                                                            overwrite=overwrite)
         else:
             if 'psh' in img_info.process_steps:
@@ -94,7 +95,7 @@ def main(input_csv: str = "",
                 img_info.psh_merge = img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path(img_info.psh_tile_list[0])
         t.update()
         # Pansharpening
-        if 'psh' in img_info.process_steps:
+        if 'psh' in img_info.process_steps and not img_info.errors:
             img_info.psh_merge, err = pansharpen(img_info=img_info, method=method, ram=max_ram, dry_run=dry_run, overwrite=overwrite)
             img_info.errors = err if err != '[]' else None
         t.update()
@@ -115,7 +116,11 @@ def main(input_csv: str = "",
         t.update()
         # Split into singleband images
         if not img_info.errors:
-            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, img_info.mul_xml)
+            if 'psh' in img_info.process_steps:
+                xml_f = img_info.parent_folder / img_info.image_folder / img_info.mul_xml
+            else:
+                xml_f = img_info.parent_folder / img_info.image_folder / img_info.psh_xml
+            img_info.band_file_list, img_info.errors = gdal_split_band(img_info.scale_img, xml_f)
         t.update()
         # Delete intemerdiate files
         if delete_intermediate_files and not img_info.errors:
@@ -127,6 +132,7 @@ def main(input_csv: str = "",
                     os.remove(file)
                 except OSError as e:
                     print("Error: %s : %s" % (file, e.strerror))
+        t.update()
         t.close()
         duration = (datetime.now() - now_read).seconds / 60
         logging.info(f"Image {img_info.image_folder} processed in {duration} minutes")
