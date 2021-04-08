@@ -1,4 +1,3 @@
-import argparse
 import os
 from itertools import product
 from pathlib import Path
@@ -7,30 +6,13 @@ from typing import List
 import logging
 from dataclasses import dataclass
 import re
-import csv
 import xml.etree.ElementTree as ET
 import rasterio
 from tqdm import tqdm
 
-from utils import read_parameters, rasterio_raster_reader, validate_file_exists, CsvLogger
+from utils import rasterio_raster_reader, validate_file_exists
 
 logging.getLogger(__name__)
-
-
-@dataclass
-class TileInfo:
-    parent_folder: Path
-    process_steps: list
-    dtype: str
-    image_folder: Path
-    mul_pan_patern: list = None
-    mul_tile: Path = None
-    pan_tile: Path = None
-    psh_tile: Path = None
-    prep_folder: Path = None
-    last_processed_fp: Path = None
-    mul_xml: Path = None
-    errors: str = None
 
 
 @dataclass
@@ -59,35 +41,6 @@ class ImageInfo:
     errors: str = None
 
 
-def list_of_tiles_from_csv(path, delimiter=";"):
-    """
-    Create list of tuples from a csv file
-    :param path: Path or str
-        path to csv file
-    :param delimiter: str
-        type of delimiter for inputted csv
-    :return:
-    """
-    assert Path(path).suffix == '.csv', ('Not a ".csv.": ' + path)
-    with open(str(path), newline='') as f:
-        reader = csv.reader(f, delimiter=delimiter)
-        # data = [tuple(row) for row in reader]
-        data = []
-        for row in reader:
-            mul_tile = Path(row[5]) if row != 'None' else None
-            pan_tile = Path(row[6]) if row != 'None' else None
-            psh_tile = Path(row[7]) if row != 'None' else None
-            last_processed_fp = Path(row[9]) if row != 'None' else None
-            process_steps = row[1].split(",")
-            mul_pan_patern = row[4].split(",")
-
-            tile = TileInfo(parent_folder=Path(row[0]), process_steps=process_steps, dtype=row[2], image_folder=Path(row[3]),
-                            mul_pan_patern=mul_pan_patern, mul_tile=mul_tile, pan_tile=pan_tile, psh_tile=psh_tile,
-                            prep_folder=Path(row[8]), last_processed_fp=last_processed_fp)
-            data.append(tile)
-    return data
-
-
 def get_tiles_from_xml(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
@@ -99,11 +52,10 @@ def get_tiles_from_xml(xml_file):
 
 
 def tile_list_glob(base_dir: str,
-                  mul_pan_glob: List[str] = [],
-                  mul_pan_str: List[str] = [],
-                  psh_glob: List[str] = [],
-                  extensions: List[str] = [],
-                  out_csv: str = ""):
+                   mul_pan_glob: List[str] = [],
+                   mul_pan_str: List[str] = [],
+                   psh_glob: List[str] = [],
+                   extensions: List[str] = []):
     """
     Glob through specified directories for (1) pairs of multispectral and panchromatic rasters or (2) pansharp rasters.
     Save as csv and/or return as list.
@@ -121,8 +73,6 @@ def tile_list_glob(base_dir: str,
         List of glob patterns to find panchromatic rasters.
     :param extensions: list of str
         List of extensions (suffixes) the raster files may bear, e.g. ["tif", "ntf"].
-    :param out_csv: str
-        Output csv where info about processed files and log messages will be saved.
     :return:
         list of lists (rows) containing info about files found, output pansharp name (if applies) and more.
     """
@@ -134,7 +84,6 @@ def tile_list_glob(base_dir: str,
 
     os.chdir(base_dir)  # Work in base directory
 
-    # TODO: test execution of preprocess_glob.py
     import logging.config
     out_log_path = Path("./logs")
     out_log_path.mkdir(exist_ok=True)
@@ -142,9 +91,6 @@ def tile_list_glob(base_dir: str,
     logging.info("Started")
 
     base_dir_res = Path(base_dir).resolve()  # Resolved path is useful in section 2 (search for panchromatic).
-
-    if out_csv != "":
-        out_csv = CsvLogger(out_csv=out_csv, info_type='tile')
 
     glob_output_list = []
 
@@ -229,7 +175,7 @@ def tile_list_glob(base_dir: str,
                           f"Panchromatic: {pan_rel}\n"
                           f"Multispectral datatype: {dtype}\n")
 
-            # # Determine output path
+            # Determine output path
             p = re.compile('_M\w\w')
             output_path = Path(p.sub('_PREP', str(mul_rel.parent)))
             output_prep_path = Path(base_dir) / image_folder / output_path
@@ -249,12 +195,11 @@ def tile_list_glob(base_dir: str,
                                  process_steps=process_steps, dtype=dtype)
 
             glob_output_list.append(img_info)
-            # out_csv.write_row(img_info)
 
     mul_pan_pairs_ct = len(glob_output_list)
     logging.info(f"Found {mul_pan_pairs_ct} pair(s) of multispectral and panchromatic rasters with provided parameters")
 
-    # 4. Find already pansharped images with a certain name pattern
+    # 3. Find already pansharped images with a certain name pattern
     ################################################################################
     if psh_glob:  # if config file contains any search pattern, glob.
         for psh_glob_item, ext in product(psh_glob, extensions):
@@ -303,24 +248,8 @@ def tile_list_glob(base_dir: str,
                                      dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps, mul_pan_info=psh_glob_pattern)
 
                 glob_output_list.append(img_info)
-                # out_csv.write_row(img_info)
 
     psh_ct = len(glob_output_list) - mul_pan_pairs_ct
     logging.info(f'Found {psh_ct} pansharped raster(s) with provided parameters')
 
     return glob_output_list
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Preprocess execution')
-    parser.add_argument('param_file', metavar='DIR',
-                        help='Path to preprocessing parameters stored in yaml')
-    args = parser.parse_args()
-    config_path = Path(args.param_file)
-    params = read_parameters(args.param_file)
-
-    log_config_path = Path('logging.conf').absolute()
-
-    tile_list_glob(**params['glob'])
-
-    logging.info("Finished")

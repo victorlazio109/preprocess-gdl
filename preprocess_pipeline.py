@@ -8,12 +8,11 @@ from pathlib import Path
 from tqdm import tqdm
 
 from PansharpRaster import gdal_split_band, pansharpen, rasterio_merge_tiles, gdal_8bit_rescale
-from preprocess_glob import ImageInfo, list_of_tiles_from_csv, tile_list_glob
+from preprocess_glob import tile_list_glob
 from utils import CsvLogger, read_parameters
 
 
-def main(input_csv: str = "",
-         method: str = "otb-bayes",
+def main(method: str = "gdal-cubic",
          max_ram = 4096,
          log_csv: str = "",
          overwrite: bool = False,
@@ -23,8 +22,6 @@ def main(input_csv: str = "",
     """
     Preprocess rasters according to chosen parameters. This includes pansharpening,
     rescaling to 8bit, merging tiles and splitting rasters into single band images.
-    :param input_csv: str
-        Csv from glob process, if glob was done as separate step.
     :param method: str
         Pansharp method. Choices: otb-lmvm, otb-bayes, simple_brovey, brovey, simple_mean, esri, hsv
     :param log_csv: str
@@ -35,6 +32,8 @@ def main(input_csv: str = "",
         Parameters sent to preprocess_glob.pansharp_glob() function. See function for more details.
     :param dry_run: bool
         If True, script runs normally, except all time-consuming processes are skipped (i.e. no pansharp, no cogging)
+    :param delete_intermediate_files: bool
+        If True, will delete all intermediate files and only keep the singleband images.
     :return:
         Preprocessed rasters (pansharped/cogged), depending on inputted parameters and
         availability of modules (eg. otbApplication and rio_cogeo)
@@ -52,15 +51,11 @@ def main(input_csv: str = "",
     if dry_run:
         logging.warning("DRY-RUN")
 
-    CsvLog = CsvLogger(out_csv=log_csv, info_type='log')
+    CsvLog = CsvLogger(out_csv=log_csv)
 
     # 1. BUILD INPUT LIST
     ################################################################################
-    # if input csv specified, build input list from it, else use pansharp_glob() function and glob parameters
-    if input_csv:
-        pansharp_glob_list = list_of_tiles_from_csv(input_csv, delimiter=";")
-    else:
-        pansharp_glob_list = tile_list_glob(**glob_params)
+    pansharp_glob_list = tile_list_glob(**glob_params)
 
     # 2. LOOP THROUGH INPUT LIST. Each item is a row with info about single image (multispectral/panchromatic, etc.)
     ################################################################################
@@ -137,7 +132,8 @@ def main(input_csv: str = "",
         duration = (datetime.now() - now_read).seconds / 60
         logging.info(f"Image {img_info.image_folder} processed in {duration} minutes")
 
-        # CsvLog.write_row(info=row)
+        row = [img_info.image_folder, img_info.errors, duration]
+        CsvLog.write_row(info=row)
 
     list_16bit = [x for x in pansharp_glob_list if x.dtype == "uint16"]
     list_8bit = [x for x in pansharp_glob_list if x.dtype == "uint8"]

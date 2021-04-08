@@ -4,9 +4,8 @@ import logging
 
 import rasterio
 from rasterio.merge import merge
-import re
 from osgeo import gdal
-from preprocess_glob import TileInfo, ImageInfo
+from preprocess_glob import ImageInfo
 from utils import validate_file_exists
 import xml.etree.ElementTree as ET
 import subprocess
@@ -94,7 +93,17 @@ def pansharpen(img_info: ImageInfo,
 
 
 def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
+    """
 
+    :param mul: Path
+        Path to multispectral image
+    :param pan: Path
+        Path to panchromatic image
+    :param out: Path
+        Path to pansharpen file
+    :param method: str
+        Resampling algorithm for pansharpening. One of gdal-cubic, gdal-nearest, gdal-bilinear, gdal-cubicspline, gdal-lanczos, gdal-average
+    """
     method = method.replace('gdal-', '')
     command = f"gdal_pansharpen.py " \
               f"-of GTiff " \
@@ -111,8 +120,10 @@ def gdal_pansharp(mul, pan, out, method="gdal-cubic"):
 def gdal_8bit_rescale(infile, outfile, overwrite=False):
     """
     Rescale to 8 bit the input image. Uses gdal_translate.
-    :param tile_info: TileInfo
+    :param infile: Path
         Image to scale
+    :param outfile: Path
+        Scaled image
     :param overwrite: Bool
         Overwrite if output file already exist
     :return: Path
@@ -141,8 +152,10 @@ def rasterio_merge_tiles(tile_list, outfile,
                          overwrite: bool = False):
     """
     Merge in a single tif file, multiples tifs from a list.
-    :param image_info: ImageInfo
-        Image
+    :param tile_list: list
+        List of Path to images to merge.
+    :param outfile: Path
+        Path to merged image
     :param overwrite: bool
     :return: Path
         Merged raster file name
@@ -207,8 +220,10 @@ def gdal_split_band(img_file, xml_file,
                     overwrite: bool = False):
     """
     Split multi band file into single band files.
-    :param image: ImageInfo
+    :param img_file: ImageInfo
         Image
+    :param xml_file: Path
+        Path to xml
     :param overwrite: bool
         Overwrite files if they already exists.
     :return: List of written files.
