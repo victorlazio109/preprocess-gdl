@@ -57,19 +57,23 @@ def get_img_name_from_img_folder(img_folder):
     lst_part = str(img_folder).split('_')
     im_name = ""
 
-    if re.search(r'\d+$', lst_part[0]) is not None:
-        # for cases like 'ON10_...'
-        im_name = lst_part[0]
-    elif re.search(r'\d+$', lst_part[1]) is not None:
-        # for cases like 'ON_10_...'
-        im_name = lst_part[0] + lst_part[1]
+    try:
+        if re.search(r'\d+$', lst_part[0]) is not None:
+            # for cases like 'ON10_...'
+            im_name = lst_part[0]
+        elif re.search(r'\d+$', lst_part[1]) is not None:
+            # for cases like 'ON_10_...'
+            im_name = lst_part[0] + lst_part[1]
 
-    if re.search(r'P00\d$', lst_part[1]) is not None:
-        # for cases like 'ON10_P001'
-        im_name += lst_part[1]
-    elif re.search(r'P00\d$', lst_part[2]) is not None:
-        # for cases like 'ON_10_P001'
-        im_name += lst_part[2]
+        if re.search(r'P00\d$', lst_part[1]) is not None:
+            # for cases like 'ON10_P001'
+            im_name += lst_part[1]
+        elif re.search(r'P00\d$', lst_part[2]) is not None:
+            # for cases like 'ON_10_P001'
+            im_name += lst_part[2]
+    except IndexError:
+        im_name = lst_part[0]
+
     return im_name
 
 
@@ -146,7 +150,7 @@ def tile_list_glob(base_dir: str,
             pan_glob = sorted((image_folder / mul_rel.parent).glob(pan_glob_pattern))
             if len(pan_glob) == 0:
                 missing_pan = f"The provided glob pattern {pan_glob_pattern} could not locate a potential" \
-                              f"panchromatic raster to match {mul_rel}."
+                              f"panchromatic raster to match {mul_rel} in image folder {image_folder}."
                 logging.warning(missing_pan)
                 err_mgs.append(missing_pan)
                 continue
