@@ -1,3 +1,4 @@
+import argparse
 import os
 from itertools import product
 from pathlib import Path
@@ -10,7 +11,7 @@ import xml.etree.ElementTree as ET
 import rasterio
 from tqdm import tqdm
 
-from utils import rasterio_raster_reader, validate_file_exists
+from utils import rasterio_raster_reader, validate_file_exists, read_parameters
 
 logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def get_img_name_from_img_folder(img_folder):
             # for cases like 'ON_10_P001'
             im_name += lst_part[2]
     except IndexError:
-        im_name = lst_part[0]
+        im_name = im_name
 
     return im_name
 
@@ -215,7 +216,7 @@ def tile_list_glob(base_dir: str,
             mul_tile_list = [Path(base_dir) / image_folder / mul_rel.parent / Path(elem) for elem in lst_mul_tiles]
             pan_tile_list = [Path(base_dir) / image_folder / pan_rel.parent / Path(elem) for elem in lst_pan_tiles]
 
-            im_name = get_img_name_from_img_folder(image_folder)
+            im_name = get_img_name_from_img_folder(str(image_folder).split('/')[0])
 
             # create new row and append to existing records in glob_output_list.
             img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, im_name=im_name, prep_folder=output_path,
@@ -271,7 +272,8 @@ def tile_list_glob(base_dir: str,
                 if psh_dtype != 'uint8':
                     process_steps.append('scale')
 
-                im_name = get_img_name_from_img_folder(image_folder)
+                im_name = get_img_name_from_img_folder(str(image_folder).split('/')[0])
+
                 psh_tile_list = [Path(base_dir) / image_folder / psh_rel.parent / Path(elem) for elem in lst_psh_tiles]
                 img_info = ImageInfo(parent_folder=Path(base_dir), image_folder=image_folder, im_name=im_name, prep_folder=output_path,
                                      psh_tile_list=psh_tile_list, dtype=psh_dtype, psh_xml=psh_xml, process_steps=process_steps,
@@ -283,3 +285,18 @@ def tile_list_glob(base_dir: str,
     logging.info(f'Found {psh_ct} pansharped raster(s) with provided parameters')
 
     return glob_output_list
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Preprocess execution')
+    parser.add_argument('param_file', metavar='DIR',
+                        help='Path to preprocessing parameters stored in yaml')
+    args = parser.parse_args()
+    config_path = Path(args.param_file)
+    params = read_parameters(args.param_file)
+
+    log_config_path = Path('logging.conf').absolute()
+
+    tile_list_glob(**params['glob'])
+
+    logging.info("Finished")
