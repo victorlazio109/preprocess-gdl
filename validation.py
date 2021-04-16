@@ -60,16 +60,9 @@ def main(glob_params: dict = None):
 
     pansharp_glob_list = tile_list_glob(**glob_params)
 
-    # Group tiles per image.
-    unique_values = set([(tile.parent_folder, tile.image_folder, tile.prep_folder, tile.mul_xml) for tile in pansharp_glob_list])
-    list_img = []
-    for elem in tqdm(unique_values, desc='Preparing image list'):
-        image_info = ImageInfo(parent_folder=elem[0], image_folder=elem[1], prep_folder=elem[2], tile_list=[], mul_xml=elem[3])
-        list_img.append(image_info)
-
     error_list = []
     val_list = []
-    for img in tqdm(list_img, desc='Iterating through images'):
+    for img in tqdm(pansharp_glob_list, desc='Iterating through images'):
         bgrn_dict = {'B': '', 'G': '', 'R': '', 'N': ''}
 
         lst_img = [name for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
