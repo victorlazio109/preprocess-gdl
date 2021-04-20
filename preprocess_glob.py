@@ -108,12 +108,13 @@ def tile_list_glob(base_dir: str,
     # e.g. [('Sherbrooke/**/*_MUL/*-M*_P00?', '../*_PAN'), ('-M', '-P')]. See pansharp_glob()'s docstring for more info.
     mul_pan_info_list = [[tuple(mul_pan_glob[x]), tuple(mul_pan_str[x])] for x in mul_pan_glob]
 
-    os.chdir(base_dir)  # Work in base directory
+    os.chdir("/home/valhass/Projects/preprocess-gdl/")  # Work in base directory
 
     # TODO: test execution of preprocess_glob.py
     import logging.config
-    out_log_path = Path("./logs")
-    out_log_path.mkdir(exist_ok=True)
+    out_log_path = Path("/home/valhass/Projects/preprocess-gdl/logs")
+    Path.mkdir(out_log_path, parents=True, exist_ok=True)
+    # out_log_path.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
     logging.info("Started")
 
@@ -135,6 +136,7 @@ def tile_list_glob(base_dir: str,
         # Loop through glob generator object and retrieve individual multispectral images
         for mul_raster in tqdm(mul_rasters_glob, desc='Iterating through multispectral images'):  # mul_raster being a Path object
             mul_raster_rel = Path(mul_raster).relative_to(base_dir_res)  # Use only relative paths from here
+            print(mul_raster_rel)
 
             image_folder = mul_raster_rel.parents[1]
             mul_raster_rel = Path(mul_raster).relative_to(base_dir_res / image_folder)
@@ -170,6 +172,7 @@ def tile_list_glob(base_dir: str,
                 pan_rasters_str.append(str(pot_pan_rel))
             # Get closest match between guessed name for panchromatic image and glob file names
             pan_raster_rel = Path(get_close_matches(str(pan_best_guess_rel_path), pan_rasters_str)[0])
+            print(pan_raster_rel)
             if not validate_file_exists(image_folder / pan_raster_rel):
                 no_panchro_err = f"Panchromatic raster not found to match multispectral raster {mul_raster_rel}"
                 logging.warning(no_panchro_err)

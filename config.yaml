@@ -1,7 +1,7 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir: /path/to/dir
+  base_dir: /wshare/travail/bdgrid2/EXTRACTION/Deep_learning/GDL_EAU_2019_20/GDL_all_images/GeoEye1/
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
@@ -9,7 +9,7 @@ glob:
     1: ["-M", "-P"]
     2: ["_MSI", "_PAN"]
   psh_glob: ["**/*_PSH/*_P00?"] # See README
-  extensions: ["tif", "ntf"] # list of all possible extensions the raster files may have. Case-sensitive on Linux.
+  extensions: ["XML"] # list of all possible extensions the raster files may have. Case-sensitive on Linux.
   out_csv: 'logs/glob_metadata.csv' # Output csv for glob process
 
 process:
