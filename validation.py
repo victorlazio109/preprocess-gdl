@@ -73,7 +73,7 @@ def main(glob_params: dict = None):
         for b in bgrn_dict.keys():
             p = rf"_BAND_{b}.tif"
             try:
-                bgrn_dict[b] = [el for el in lst_img if el.endswith(p)][0]
+                bgrn_dict[b] = [el for el in lst_img if str(el.name).endswith(p)][0]
             except IndexError:
                 err_img = ImgError(img_name=str(img.im_name), detected_error=f"Band {b} is missing.")
                 error_list.append(err_img)

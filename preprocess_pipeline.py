@@ -63,7 +63,7 @@ def main(method: str = "gdal-cubic",
         logging.info(msg=f"Processing image {img_info.im_name} {pansharp_glob_list.index(img_info) + 1} / {len(pansharp_glob_list)}")
         now_read, duration = datetime.now(), 0
         os.chdir(base_dir)
-        t = tqdm(total=5)
+        t = tqdm(total=4)
         # Merge has to be done first. Otherwise it will create artefacts in other steps.
         if 'merge' in img_info.process_steps:
             p = re.compile('R\wC\w')
@@ -117,17 +117,17 @@ def main(method: str = "gdal-cubic",
                 xml_f = img_info.parent_folder / img_info.image_folder / img_info.psh_xml
             img_info.band_file_list, img_info.errors = gdal_split_band(img_info.im_name, img_info.scale_img, xml_f)
         t.update()
-        # Delete intemerdiate files
-        if delete_intermediate_files and not img_info.errors:
-            logging.warning('Will delete intermediate files.')
-            patern = str(img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path('*.tif'))
-            list_file_to_delete = [f for f in glob.glob(patern) if f not in img_info.band_file_list]
-            for file in list_file_to_delete:
-                try:
-                    os.remove(file)
-                except OSError as e:
-                    print("Error: %s : %s" % (file, e.strerror))
-        t.update()
+        # # Delete intemerdiate files
+        # if delete_intermediate_files and not img_info.errors:
+        #     logging.warning('Will delete intermediate files.')
+        #     patern = str(img_info.parent_folder / img_info.image_folder / img_info.prep_folder / Path('*.tif'))
+        #     list_file_to_delete = [f for f in glob.glob(patern) if f not in img_info.band_file_list]
+        #     for file in list_file_to_delete:
+        #         try:
+        #             os.remove(file)
+        #         except OSError as e:
+        #             print("Error: %s : %s" % (file, e.strerror))
+        # t.update()
         t.close()
         duration = (datetime.now() - now_read).seconds / 60
         logging.info(f"Image {img_info.image_folder} processed in {duration} minutes")
