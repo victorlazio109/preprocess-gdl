@@ -56,7 +56,7 @@ def get_tiles_from_xml(xml_file):
 def get_img_name_from_img_folder(img_folder):
     # dirty but works...
     lst_part = str(img_folder).split('_')
-    im_name = ""
+    im_name = img_folder
 
     try:
         if re.search(r'\d+$', lst_part[0]) is not None:

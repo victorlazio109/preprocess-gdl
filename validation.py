@@ -21,7 +21,7 @@ class ImgValidated:
     bands_info: dict
 
 
-def err_to_table(err_list, csv_log):
+def err_to_table(err_list, csv_log=None):
     str_log = f"*** List of images with errors and the detected error ***\n"
     for im in err_list:
         im_log = f"\t{im.img_name}  --->" \
@@ -29,7 +29,8 @@ def err_to_table(err_list, csv_log):
 
         str_log += im_log
     print(str_log)
-    csv_log.write_row([str_log])
+    if csv_log is not None:
+        csv_log.write_row([str_log])
 
 
 def val_to_table(val_list, csv_log):
