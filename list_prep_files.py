@@ -3,17 +3,17 @@ from pathlib import Path
 import argparse
 import glob
 from preprocess_glob import tile_list_glob
-from utils import read_parameters
+from utils import read_parameters, CsvLogger
 
 
 def main(glob_params):
     images_list = tile_list_glob(**glob_params)
-    lst_files = []
+    CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
     for img in images_list:
         lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
         lst_img.extend([Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
-        lst_files.extend(lst_img)
-    print(lst_files)
+        for elem in lst_img:
+            CsvLog.write_row([str(elem)])
 
 
 if __name__ == '__main__':
