@@ -17,3 +17,6 @@ process:
   overwrite: False # if True, overwrites existing output file
   dry_run: False
   log_csv: 'logs/_log.csv' # Output csv to log progress
+
+list_img:
+  keep_only: uint8 # all, uint8, uint16, singleband
