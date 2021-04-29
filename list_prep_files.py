@@ -27,13 +27,13 @@ def main(glob_params, keep_only='all'):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Pansharp execution')
-    parser.add_argument('param_file', metavar='DIR',
-                        help='Path to preprocessing parameters stored in yaml')
-    args = parser.parse_args()
-    config_path = Path(args.param_file)
-    params = read_parameters(args.param_file)
+    # parser = argparse.ArgumentParser(description='Pansharp execution')
+    # parser.add_argument('param_file', metavar='DIR',
+    #                     help='Path to preprocessing parameters stored in yaml')
+    # args = parser.parse_args()
+    # config_path = Path(args.param_file)
+    params = read_parameters('/home/valhass/Projects/preprocess-gdl/config.yaml')
 
-    log_config_path = Path('logging.conf').absolute()
+    # log_config_path = Path('logging.conf').absolute()
 
     main(glob_params=params['glob'], keep_only=params['list_img']['keep_only'])

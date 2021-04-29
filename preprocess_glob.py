@@ -109,10 +109,10 @@ def tile_list_glob(base_dir: str,
     # e.g. [('Sherbrooke/**/*_MUL/*-M*_P00?', '../*_PAN'), ('-M', '-P')]. See pansharp_glob()'s docstring for more info.
     mul_pan_info_list = [[tuple(mul_pan_glob[x]), tuple(mul_pan_str[x])] for x in mul_pan_glob]
 
-    os.chdir(base_dir)  # Work in base directory
+    os.chdir("/home/valhass/Projects/preprocess-gdl/")  # Work in base directory
 
     import logging.config
-    out_log_path = Path("./logs")
+    out_log_path = Path("/home/valhass/Projects/preprocess-gdl/logs/")
     out_log_path.mkdir(exist_ok=True)
     logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
     logging.info("Started")
