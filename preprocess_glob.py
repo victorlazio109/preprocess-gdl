@@ -78,6 +78,9 @@ def get_img_name_from_img_folder(img_folder):
     return im_name
 
 
+def either(c):
+    return '[%s%s]' % (c.lower(), c.upper()) if c.isalpha() else c
+
 def tile_list_glob(base_dir: str,
                    mul_pan_glob: List[str] = [],
                    mul_pan_str: List[str] = [],
@@ -109,10 +112,10 @@ def tile_list_glob(base_dir: str,
     # e.g. [('Sherbrooke/**/*_MUL/*-M*_P00?', '../*_PAN'), ('-M', '-P')]. See pansharp_glob()'s docstring for more info.
     mul_pan_info_list = [[tuple(mul_pan_glob[x]), tuple(mul_pan_str[x])] for x in mul_pan_glob]
 
-    os.chdir("/home/valhass/Projects/preprocess-gdl/")  # Work in base directory
+    os.chdir(base_dir)  # Work in base directory
 
     import logging.config
-    out_log_path = Path("/home/valhass/Projects/preprocess-gdl/logs/")
+    out_log_path = Path("./logs/")
     out_log_path.mkdir(exist_ok=True)
     logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
     logging.info("Started")
@@ -121,13 +124,15 @@ def tile_list_glob(base_dir: str,
 
     glob_output_list = []
 
+
+
     # 1. GLOB to all multispectral images in base directory using inputted pattern. Create generator from glob search.
     ################################################################################
     for mul_pan_info, ext in product(mul_pan_info_list, extensions):  # FIXME: if list is empty, Nonetype will cause TypeError
         mul_glob_pattern = mul_pan_info[0][0] + "." + ext
         # FIXME: there may be compatibilty issues with glob's case sensitivity in Linux. Working ok on Windows.
         # More info: https://jdhao.github.io/2019/06/24/python_glob_case_sensitivity/
-        mul_glob = base_dir_res.glob(mul_glob_pattern)
+        mul_glob = base_dir_res.glob(''.join(map(either, mul_glob_pattern)))
 
         # Loop through glob generator object and retrieve xml in multispectral folder
         for mul_xml in tqdm(mul_glob, desc='Iterating through multispectral xml'):  # mul_raster being a Path object
@@ -148,7 +153,7 @@ def tile_list_glob(base_dir: str,
             ################################################################################
             pan_glob_pattern = mul_pan_info[0][1] + "/*." + ext
             # assume panchromatic file has same extension as multispectral
-            pan_glob = sorted((image_folder / mul_rel.parent).glob(pan_glob_pattern))
+            pan_glob = sorted((image_folder / mul_rel.parent).glob("".join(map(either, pan_glob_pattern))))
             if len(pan_glob) == 0:
                 missing_pan = f"The provided glob pattern {pan_glob_pattern} could not locate a potential" \
                               f"panchromatic raster to match {mul_rel} in image folder {image_folder}."
@@ -215,6 +220,8 @@ def tile_list_glob(base_dir: str,
 
             mul_tile_list = [Path(base_dir) / image_folder / mul_rel.parent / Path(elem) for elem in lst_mul_tiles]
             pan_tile_list = [Path(base_dir) / image_folder / pan_rel.parent / Path(elem) for elem in lst_pan_tiles]
+            # print(mul_tile_list)
+            # print(pan_tile_list)
 
             im_name = get_img_name_from_img_folder(str(image_folder).split('/')[0])
 
@@ -233,7 +240,7 @@ def tile_list_glob(base_dir: str,
     if psh_glob:  # if config file contains any search pattern, glob.
         for psh_glob_item, ext in product(psh_glob, extensions):
             psh_glob_pattern = psh_glob_item + "." + ext
-            psh_xml_glob = base_dir_res.glob(psh_glob_pattern)
+            psh_xml_glob = base_dir_res.glob(''.join(map(either, psh_glob_pattern)))
             for psh_xml in tqdm(psh_xml_glob, desc="Iterating through already pansharped images"):
 
                 psh_rel = Path(psh_xml).relative_to(base_dir_res)  # Use only relative paths
@@ -288,15 +295,15 @@ def tile_list_glob(base_dir: str,
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Preprocess execution')
-    parser.add_argument('param_file', metavar='DIR',
-                        help='Path to preprocessing parameters stored in yaml')
-    args = parser.parse_args()
-    config_path = Path(args.param_file)
-    params = read_parameters(args.param_file)
-
-    log_config_path = Path('logging.conf').absolute()
-
+    # parser = argparse.ArgumentParser(description='Preprocess execution')
+    # parser.add_argument('param_file', metavar='DIR',
+    #                     help='Path to preprocessing parameters stored in yaml')
+    # args = parser.parse_args()
+    # config_path = Path(args.param_file)
+    # params = read_parameters(args.param_file)
+    #
+    # log_config_path = Path('logging.conf').absolute()
+    params = read_parameters('/home/maju/PycharmProjects/preprocess-gdl/config.yaml')
     tile_list_glob(**params['glob'])
 
     logging.info("Finished")

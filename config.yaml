@@ -1,7 +1,7 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir: /wshare/travail/bdgrid2/EXTRACTION/Deep_learning/GDL_EAU_2019_20/GDL_all_images/GeoEye1/
+  base_dir: /media/maju/Var/GDL_all_images/
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
