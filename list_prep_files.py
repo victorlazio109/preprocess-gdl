@@ -3,26 +3,31 @@ from pathlib import Path
 import argparse
 import glob
 import re
+import dataclasses
+import json
 from preprocess_glob import tile_list_glob, either
-from utils import read_parameters, CsvLogger
+from utils import read_parameters, CsvLogger, get_key_def
 
 
 def main(glob_params, list_params):
     images_list = tile_list_glob(**glob_params)
     keep_only = list_params['keep_only']
-    source_pan = list_params['source']['pan']
-    source_mul = list_params['source']['mul']
-    prep_band = list_params['source']['band']
-
-
-
+    source_pan = get_key_def('pan', list_params['source'], default=False, expected_type=bool)
+    source_mul = get_key_def('mul', list_params['source'], default=False, expected_type=bool)
+    prep_band = get_key_def('band', list_params['prep'], default=[], expected_type=list)
 
     # CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
-    # for img in images_list:
-    #     lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
-    #     lst_img.extend([Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
-    #     for elem in lst_img:
-    #         # print(elem.stem)
+    for img in images_list:
+        print(img)
+        if source_pan:
+            for pan_img in img.pan_tile_list:
+                print(pan_img)
+
+        # print(img)
+        # lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
+        # lst_img.extend([Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
+        # for elem in lst_img:
+        #     print(elem.stem)
     #         if keep_only == 'all':
     #             print(str(elem.stem))
     #             CsvLog.write_row([str(elem)])
@@ -46,7 +51,7 @@ if __name__ == '__main__':
     #                     help='Path to preprocessing parameters stored in yaml')
     # args = parser.parse_args()
     # config_path = Path(args.param_file)
-    params = read_parameters('/home/maju/PycharmProjects/preprocess-gdl/config.yaml')
+    params = read_parameters('/home/valhass/Projects/preprocess-gdl/config.yaml')
 
     # log_config_path = Path('logging.conf').absolute()
 
