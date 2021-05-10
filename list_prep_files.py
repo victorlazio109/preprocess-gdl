@@ -7,26 +7,34 @@ from preprocess_glob import tile_list_glob, either
 from utils import read_parameters, CsvLogger
 
 
-def main(glob_params, keep_only='all'):
+def main(glob_params, list_params):
     images_list = tile_list_glob(**glob_params)
-    # print(images_list)
-    CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
-    for img in images_list:
-        lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
-        lst_img.extend([Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
-        for elem in lst_img:
-            # print(elem.stem)
-            if keep_only == 'all':
-                CsvLog.write_row([str(elem)])
+    keep_only = list_params['keep_only']
+    source_pan = list_params['source']['pan']
+    source_mul = list_params['source']['mul']
+    prep_band = list_params['source']['band']
 
-            elif keep_only == 'singleband':
-                if re.search(rf'*_BAND_*', str(elem.stem)):
-                    CsvLog.write_row([str(elem)])
 
-            else:
-                if f'{keep_only}' in str(elem.stem):
-                    print(str(elem.stem))
-                    CsvLog.write_row([str(elem)])
+
+
+    # CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
+    # for img in images_list:
+    #     lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
+    #     lst_img.extend([Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
+    #     for elem in lst_img:
+    #         # print(elem.stem)
+    #         if keep_only == 'all':
+    #             print(str(elem.stem))
+    #             CsvLog.write_row([str(elem)])
+    #
+    #         elif keep_only == 'singleband':
+    #             if re.search(rf'*_BAND_*', str(elem.stem)):
+    #                 CsvLog.write_row([str(elem)])
+    #
+    #         else:
+    #             if f'{keep_only}' in str(elem.stem):
+    #                 # print(str(elem.stem))
+    #                 CsvLog.write_row([str(elem)])
                 # if re.search(''.join(map(either, re.escape(rf'*_{keep_only}_*'))), str(elem.stem)):
                 #     print(str(elem.stem))
 
@@ -42,4 +50,4 @@ if __name__ == '__main__':
 
     # log_config_path = Path('logging.conf').absolute()
 
-    main(glob_params=params['glob'], keep_only=params['list_img']['keep_only'])
+    main(glob_params=params['glob'], list_params=params['list_img'])

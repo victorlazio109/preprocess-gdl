@@ -19,4 +19,9 @@ process:
   log_csv: 'logs/_log.csv' # Output csv to log progress
 
 list_img:
-  keep_only: uint8 # all, uint8, uint16, singleband
+  keep_only: all # all, uint8, uint16, singleband
+  source:
+    pan: True
+    mul: False
+  prep:
+    band: [R, G, B, N] # case sensitive depending OS (optimized for Linux OS)
