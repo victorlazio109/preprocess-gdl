@@ -1,7 +1,7 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir: /media/maju/Var/GDL_all_images/
+  base_dir: /export/sata01/wspace/test_case_GDL_images
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
@@ -22,6 +22,6 @@ list_img:
   keep_only: all # all, uint8, uint16, singleband
   source:
     pan: True
-    mul: False
+    mul: True
   prep:
     band: [R, G, B, N] # case sensitive depending OS (optimized for Linux OS)

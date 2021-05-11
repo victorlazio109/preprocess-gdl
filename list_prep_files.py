@@ -8,6 +8,8 @@ import json
 from preprocess_glob import tile_list_glob, either
 from utils import read_parameters, CsvLogger, get_key_def
 
+all_dict = {'all_images': []}
+
 
 def main(glob_params, list_params):
     images_list = tile_list_glob(**glob_params)
@@ -18,11 +20,29 @@ def main(glob_params, list_params):
 
     # CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
     for img in images_list:
-        print(img)
+        data_struct = {'sensorID': '',
+                       'pan_img': [],
+                       'mul_img': [],
+                       'r_band': '',
+                       'g_band': '',
+                       'b_band': '',
+                       'nir_band': '',
+                       'gpkg': ''}
+        data_struct['sensorID'] = img.im_name
         if source_pan:
             if img.pan_tile_list is not None:
                 for pan_img in img.pan_tile_list:
-                    print(pan_img)
+                    data_struct['pan_img'].append(pan_img)
+
+        if source_mul:
+            if img.mul_tile_list is not None:
+                for mul_img in img.mul_tile_list:
+                    data_struct['mul_img'].append(mul_img)
+
+
+
+        all_dict['all_images'].append(data_struct)
+    print(all_dict)
 
         # print(img)
         # lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
