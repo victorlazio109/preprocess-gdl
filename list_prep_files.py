@@ -20,8 +20,9 @@ def main(glob_params, list_params):
     for img in images_list:
         print(img)
         if source_pan:
-            for pan_img in img.pan_tile_list:
-                print(pan_img)
+            if img.pan_tile_list is not None:
+                for pan_img in img.pan_tile_list:
+                    print(pan_img)
 
         # print(img)
         # lst_img = [Path(name) for name in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
