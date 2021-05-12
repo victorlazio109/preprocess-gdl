@@ -24,4 +24,4 @@ list_img:
     pan: True
     mul: True
   prep:
-    band: [R, G, B, N] # case sensitive depending OS (optimized for Linux OS)
+    band: ['L'] # case sensitive depending OS (optimized for Linux OS)

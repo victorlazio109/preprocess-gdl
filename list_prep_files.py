@@ -5,9 +5,12 @@ import glob
 import re
 import dataclasses
 import json
+import logging
 from preprocess_glob import tile_list_glob, either
 from utils import read_parameters, CsvLogger, get_key_def
 
+logging.getLogger(__name__)
+logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
 all_dict = {'all_images': []}
 
 
@@ -19,15 +22,17 @@ def main(glob_params, list_params):
     prep_band = get_key_def('band', list_params['prep'], default=[], expected_type=list)
 
     # CsvLog = CsvLogger(out_csv=glob_params['base_dir'] + '/prep_img.csv')
+    data_struct = {'sensorID': '',
+                   'pan_img': [],
+                   'mul_img': [],
+                   'r_band': '',
+                   'g_band': '',
+                   'b_band': '',
+                   'nir_band': '',
+                   'gpkg': ''}
+
     for img in images_list:
-        data_struct = {'sensorID': '',
-                       'pan_img': [],
-                       'mul_img': [],
-                       'r_band': '',
-                       'g_band': '',
-                       'b_band': '',
-                       'nir_band': '',
-                       'gpkg': ''}
+        print(img)
         data_struct['sensorID'] = img.im_name
         if source_pan:
             if img.pan_tile_list is not None:
@@ -38,6 +43,59 @@ def main(glob_params, list_params):
             if img.mul_tile_list is not None:
                 for mul_img in img.mul_tile_list:
                     data_struct['mul_img'].append(mul_img)
+
+        if prep_band:
+            if set(prep_band).issubset({'R', 'G', 'B', 'N'}):
+                print(True)
+                lst_img = [Path(name) for name
+                           in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.tif")]
+                lst_img.extend([Path(name) for name
+                                in glob.glob(str(img.parent_folder / img.image_folder / img.prep_folder) + "/*.TIF")])
+
+                for elem in lst_img:
+                    if 'R' in prep_band:
+                        band = 'uint8_BAND_R'
+                        if f'{band}' in str(elem.stem):
+                            data_struct['r_band'] = elem
+                        else:
+                            logging.warn(f'There are no compatible red band uint8 image found for {elem}')
+                    elif 'G' in prep_band:
+                        band = 'uint8_BAND_G'
+                        if f'{band}' in str(elem.stem):
+                            data_struct['g_band'] = elem
+                        else:
+                            logging.warn(f'There are no compatible green band uint8 image found for {elem}')
+
+                    elif 'B' in prep_band:
+                        band = 'uint8_BAND_B'
+                        if f'{band}' in str(elem.stem):
+                            data_struct['b_band'] = elem
+                        else:
+                            logging.warn(f'There are no compatible blue band uint8 image found for {elem}')
+
+                    elif 'N' in prep_band:
+                        band = 'uint8_BAND_N'
+                        if f'{band}' in str(elem.stem):
+                            data_struct['nir_band'] = elem
+                        else:
+                            logging.warn(f'There are no compatible nir band uint8 image found for {elem}')
+            else:
+                logging.warn(f'There are no compatible image bands defined')
+                #
+                # if band == 'B':
+                #     band = 'uint8_BAND_B'
+                #     if f'{band}' in str(elem.stem):
+                #         data_struct['b_band'] = elem
+                # else:
+                #     logging.warn(f'There are no compatible red band uint8 image found for {elem}')
+                #
+                # if band == 'N':
+                #     band = 'uint8_BAND_N'
+                #     if f'{band}' in str(elem.stem):
+                #         data_struct['nir_band'] = elem
+                # else:
+                #     logging.warn(f'There are no compatible red band uint8 image found for {elem}')
+
 
 
 
