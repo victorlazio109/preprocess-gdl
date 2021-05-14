@@ -24,4 +24,6 @@ list_img:
     pan: True
     mul: True
   prep:
-    band: ['L'] # case sensitive depending OS (optimized for Linux OS)
+    band: ['R', 'G', 'B', 'N'] # Case sensitive (optimized for Linux OS)
+  gpkg: /wshare/travail/bdgrid2/EXTRACTION/Deep_learning/GDL_EAU_2019_20/geopackage/4_inventaire/*.gpkg
+  output_file: /home/valhass/Projects/preprocess-gdl/logs/data_file.json #json file output --> crawl.py
