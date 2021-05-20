@@ -3,15 +3,48 @@ import re
 import json
 import argparse
 import logging
+import xml.etree.ElementTree as ET
 from tqdm import tqdm
 from pathlib import Path
 from preprocess_glob import tile_list_glob
 from utils import read_parameters, get_key_def
+from typing import List
 
 logging.getLogger(__name__)
 logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
 all_dict = {'all_images': []}
 pattern = "([a-zA-Z]+)([0-9]+)"
+
+def get_band_order(xml_file):
+    """
+    Get all band(s) name and order from a XML file.
+    :param xml_file: str
+        Path to the xml
+    :return: list
+        List (in order) of all bands in the XML.
+    """
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+    l_band_order = []
+    err_msg = None
+    for t in root:
+        if t.tag == 'IMD':
+            l_band_order = [j.tag for j in t if str(j.tag).startswith('BAND_')]
+        else:
+            continue
+    # if not l_band_order:
+    #     err_msg = f"Could not locate band(s) name and order in provided xml file: {xml_file}"
+
+    return l_band_order
+
+
+def process_string(l: List[str]):
+    p_band_order = []
+    for s in l:
+        s = s.split('_')[1]
+        p_band_order.append(s)
+    return p_band_order
+
 
 
 def main(glob_params, list_params):
@@ -23,9 +56,11 @@ def main(glob_params, list_params):
     out_pth = get_key_def('output_file', list_params, default='data_file.json', expected_type=str)
 
     for img in tqdm(images_list, desc="crawling images"):
+        # print(img)
         data_struct = {'sensorID': '',
                        'pan_img': [],
                        'mul_img': [],
+                       'mul_band': '',
                        'R_band': '',
                        'G_band': '',
                        'B_band': '',
@@ -45,7 +80,10 @@ def main(glob_params, list_params):
                     data_struct['pan_img'].append(str(pan_img))
 
         if source_mul:
-            if img.mul_tile_list is not None:
+            if img.mul_tile_list and img.mul_xml is not None:
+                mul_xml = img.parent_folder / img.image_folder / img.mul_xml
+                bands = process_string(get_band_order(mul_xml))
+                data_struct['mul_band'] = bands
                 for mul_img in img.mul_tile_list:
                     data_struct['mul_img'].append(str(mul_img))
 
