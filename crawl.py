@@ -11,9 +11,9 @@ from utils import read_parameters, get_key_def
 from typing import List
 
 logging.getLogger(__name__)
-logging.basicConfig(filename='logs/prep_glob.log', level=logging.DEBUG)
+logging.basicConfig(filename='logs/crawl.log', level=logging.WARNING)
 all_dict = {'all_images': []}
-pattern = "([a-zA-Z]+)([0-9]+)"
+
 
 def get_band_order(xml_file):
     """
@@ -46,13 +46,11 @@ def process_string(l: List[str]):
     return p_band_order
 
 
-
 def main(glob_params, list_params):
     images_list = tile_list_glob(**glob_params)
     source_pan = get_key_def('pan', list_params['source'], default=False, expected_type=bool)
     source_mul = get_key_def('mul', list_params['source'], default=False, expected_type=bool)
     prep_band = get_key_def('band', list_params['prep'], default=[], expected_type=list)
-    geopackage = glob.glob(get_key_def('gpkg', list_params, default='', expected_type=str))
     out_pth = get_key_def('output_file', list_params, default='data_file.json', expected_type=str)
 
     for img in tqdm(images_list, desc="crawling images"):
@@ -65,15 +63,8 @@ def main(glob_params, list_params):
                        'G_band': '',
                        'B_band': '',
                        'N_band': '',
-                       'gpkg': ''}
+                       'gpkg': {}}
         data_struct['sensorID'] = img.im_name
-        if geopackage:
-            for gpkg in geopackage:
-                A = re.split(pattern, Path(gpkg).stem.replace('_', ""))
-                B = re.split(pattern, f'{img.image_folder.parent.name}'.replace("_", ""))[:len(A)]
-                if set(A).issubset(set(B)):
-                    data_struct['gpkg'] = gpkg
-
         if source_pan:
             if img.pan_tile_list is not None:
                 for pan_img in img.pan_tile_list:
@@ -90,13 +81,19 @@ def main(glob_params, list_params):
         if prep_band:
             if set(prep_band).issubset({'R', 'G', 'B', 'N'}):
                 for i_b in prep_band:
-                    path = list((img.parent_folder / img.image_folder / img.prep_folder).glob(f'*uint8_BAND_{i_b}.tif'))
+                    path = list((img.parent_folder / img.image_folder / img.prep_folder).glob(f'*_BAND_{i_b}.tif'))
                     if path:
                         data_struct[f'{i_b}_band'] = str(path[0])
                     else:
                         logging.warn(f'There are no compatible {i_b} band uint8 image found in {img.prep_folder}')
             else:
                 logging.warn(f'There are no compatible image bands defined')
+
+        gpkg_pth = img.parent_folder / img.im_name / img.image_folder.parent.name / 'geopakage' / '*/*.gpkg'
+        gpkg_glob = glob.glob(f'{gpkg_pth}')
+
+        if len(gpkg_glob) > 0:
+            data_struct['gpkg'] = {Path(gpkg_glob[0]).parent.stem: gpkg_glob[0]}
 
         all_dict['all_images'].append(data_struct)
 

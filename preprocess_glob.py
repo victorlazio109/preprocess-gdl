@@ -197,9 +197,10 @@ def tile_list_glob(base_dir: str,
                 logging.warning(xml_err)
 
             try:
-                with rasterio_raster_reader(str(mul_xml.parent / Path(lst_mul_tiles[0]))) as src:  # Set output dtype as original multispectral dtype
-                    dtype = src.meta["dtype"]
-            except rasterio.errors.RasterioIOError as e:
+                if len(lst_mul_tiles) > 0:
+                    with rasterio_raster_reader(str(mul_xml.parent / Path(lst_mul_tiles[0]))) as src:  # Set output dtype as original multispectral dtype
+                        dtype = src.meta["dtype"]
+            except rasterio.errors.RasterioIOError or IndexError as e:
                 logging.warning(e)
                 continue
 
@@ -262,9 +263,10 @@ def tile_list_glob(base_dir: str,
                     logging.warning(xml_err)
 
                 try:
-                    with rasterio_raster_reader(str(psh_xml.parent / Path(lst_psh_tiles[0]))) as src:
-                        psh_dtype = src.meta["dtype"]
-                except rasterio.errors.RasterioIOError as e:
+                    if len(lst_psh_tiles) > 0:
+                        with rasterio_raster_reader(str(psh_xml.parent / Path(lst_psh_tiles[0]))) as src:
+                            psh_dtype = src.meta["dtype"]
+                except rasterio.errors.RasterioIOError or IndexError as e:
                     logging.warning(e)
                     continue
 
@@ -295,15 +297,14 @@ def tile_list_glob(base_dir: str,
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Preprocess execution')
-    # parser.add_argument('param_file', metavar='DIR',
-    #                     help='Path to preprocessing parameters stored in yaml')
-    # args = parser.parse_args()
-    # config_path = Path(args.param_file)
-    # params = read_parameters(args.param_file)
-    #
-    # log_config_path = Path('logging.conf').absolute()
-    params = read_parameters('/home/maju/PycharmProjects/preprocess-gdl/config.yaml')
+    parser = argparse.ArgumentParser(description='Preprocess execution')
+    parser.add_argument('param_file', metavar='DIR',
+                        help='Path to preprocessing parameters stored in yaml')
+    args = parser.parse_args()
+    config_path = Path(args.param_file)
+    params = read_parameters(args.param_file)
+
+    log_config_path = Path('logging.conf').absolute()
     tile_list_glob(**params['glob'])
 
     logging.info("Finished")

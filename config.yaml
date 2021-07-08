@@ -1,7 +1,8 @@
 # Preprocessing configuration file ------------------------------------------------
 
 glob:
-  base_dir: /export/sata01/wspace/test_case_GDL_images
+  base_dir: /wshare/travail/bdgrid2/EXTRACTION/Deep_learning/GDL_EAU_2019_20/GDL_all_images
+#  base_dir: /export/sata01/wspace/test_case_GDL_images
   mul_pan_glob: # See README
     1: ["**/*_MUL/*-M*_P00?", "../*_PAN"]
     2: ["**/*_MSI*", "."]
@@ -25,15 +26,4 @@ list_img:
     mul: True
   prep:
     band: ['R', 'G', 'B', 'N'] # Case sensitive (optimized for Linux OS)
-  gpkg: /wshare/travail/bdgrid2/EXTRACTION/Deep_learning/GDL_EAU_2019_20/geopackage/4_inventaire/*.gpkg
-  output_file: /home/valhass/Projects/preprocess-gdl/logs/data_file.json #json file output --> crawl.py
-
-read_img:
-  input_file: /home/valhass/Projects/preprocess-gdl/logs/data_file.json
-  source:
-    pan: False
-    mul: False
-    mulband: ['R', 'G', 'B', 'N'] # Case sensitive (optimized for Linux OS)
-  prep:
-    band: ['B', 'G', 'R', 'N'] # Case sensitive (optimized for Linux OS)
-
+  output_file: /home/valhassa/Projects/preprocess-gdl/logs/data_file.json #json file output --> crawl.py
